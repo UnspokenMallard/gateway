@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Gateway server (~/.gateway/server/app.py): every model call (the HUD asks here) on 127.0.0.1:3027.
+     Installed as ~/Library/LaunchAgents/com.gateway.server.plist by ~/.gateway/bin/install-launchd. -->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.gateway.server</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/anzes/.gateway/.venv/bin/python</string>
+		<string>/Users/anzes/.gateway/server/app.py</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/anzes/.gateway</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>LANG</key>
+		<string>en_US.UTF-8</string>
+		<!-- launchd hands a bare PATH; `claude` lives in ~/.local/bin (the same PATH as com.jarvis.daemon). -->
+		<key>PATH</key>
+		<string>/Users/anzes/.local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>/Users/anzes/.gateway/state/logs/server.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/anzes/.gateway/state/logs/server.log</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+</dict>
+</plist>

@@ -1,0 +1,59 @@
+# Gateway (DESIGN.md): which model answers each surface. A caller names its surface, never a model.
+# Read at call time: a change here takes effect on the next call, no restart.
+
+[local]
+# The local model (gateway/local.py, TRIAGE-MODEL-DESIGN.md in ~/.jarvis). Moved from Jarvis's
+# [local_llm] 2026-10-17. Off until Ollama is installed after the 2-weekday perf baseline
+# (jobs/local-llm-perf.py). Then set `model`, `enabled = true` and each local surface to "shadow";
+# "local" only after the design's step 3 gate (>= 95% agreement, no CRITICAL-to-NORMAL miss, within
+# the performance budget). Host decided by Anze 2026-10-16: this Mac; anzes-pc can be added later.
+enabled = false
+host = "http://127.0.0.1:11434"
+model = ""
+timeout_s = 10
+keep_alive = "10m"
+# Skip local calls (Haiku answers instead) while kern.memorystatus_level is below this.
+# A starting point (design D4); calibrate it from the baseline where swap starts growing.
+min_memlevel = 30
+
+[surfaces]
+# Local-model surfaces: "off" | "shadow" | "local". The caller asks Claude through its own surface
+# when the local model does not answer.
+"inbound-critical" = "off"       # Asana task triage (Jarvis daemon/inbound.py)
+"briefing-triage" = "off"        # mail and chat triage (Jarvis daemon/briefing.py)
+# memory-contradict (Mind contradict.py): checks a new note against its closest notes. It has no
+# Haiku path, so "shadow" and "local" behave the same; it only warns, never blocks.
+"memory-contradict" = "off"
+
+# Claude surfaces: "claude:<model>". Each keeps the model it had before Gateway (2026-10-17).
+# Jarvis's brain (its caps, breaker and brain_calls stay in Jarvis):
+"escalation" = "claude:sonnet"             # brain.answer_escalation, Read/Grep/Glob in the repo
+"inbound-task-triage" = "claude:haiku"     # Asana task: CRITICAL or NORMAL
+"inbound-message-triage" = "claude:haiku"  # mail/chat batch verdict
+"inbound-draft" = "claude:sonnet"          # a reply draft for a batch that needs one
+"report-narrate" = "claude:haiku"          # the spoken line of a pushed report
+"originate" = "claude:sonnet"              # Forge's proposer; must equal forge.proposer.MODEL (G15 hash)
+# Forge:
+"criteria-score" = "claude:haiku"          # delegated work's acceptance criteria against its diff
+# The HUD (POST /ask):
+"hud-whereami" = "claude:haiku"
+"hud-commit-message" = "claude:haiku"
+"hud-task-classify" = "claude:haiku"
+# Mind:
+"mind-session-history" = "claude:haiku"
+"mind-memory-capture" = "claude:haiku"
+"mind-vault-capture" = "claude:haiku"
+"mind-improve-draft" = "claude:haiku"
+"mind-improve-subject" = "claude:sonnet"   # the model under test; IMPROVE_SUBJECT_MODEL still overrides it
+"mind-improve-judge" = "claude:haiku"
+
+# Tool-using job sessions (run_agent), one per job:
+"job:nightly-reflection" = "claude:sonnet"
+"job:portfolio-advisor" = "claude:sonnet"
+"job:consultant-digest" = "claude:haiku"
+"job:weekly-activity" = "claude:haiku"
+"job:weekly-introspect" = "claude:sonnet"
+"job:hud-audit" = "claude:sonnet"
+"job:issue-triage" = "claude:sonnet"
+"job:checkups" = "claude:sonnet"
+"job:implementer" = "claude:sonnet"        # Forge's implementer (was [implementer] model in Jarvis's config)

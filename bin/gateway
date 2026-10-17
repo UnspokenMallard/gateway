@@ -1,0 +1,3 @@
+#!/bin/zsh
+# Gateway's CLI (gateway/cli.py): ask a surface, list surfaces, local-model agreement.
+exec $HOME/.gateway/.venv/bin/python -c 'import sys; sys.path.insert(0, sys.argv.pop(1)); from gateway.cli import main; sys.exit(main())' $HOME/.gateway "$@"
