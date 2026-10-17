@@ -87,3 +87,91 @@ behavior; moving a surface to `local` is a later one-line config change after it
    then `run_agent` (jobcommon), then the `ask` callers one family at a time, the HUD last.
 4. Behavior must not change: same models, same caps, same ledger rows (surface names may be new;
    say so in Budget's ledger notes). Selftest and every component's tests before and after.
+
+## As built (2026-10-17/18)
+
+Built and cut over in one session (Anze: "everything in one session"). Anze's build-time answers: the HUD keeps its
+existing fallbacks when the service is down and Jarvis alerts `gateway-unreachable`; job models come from Gateway's config,
+one surface per job; Gateway takes brain's whole call (argv, run, parse, limit record, ledger row) while brain keeps its caps,
+breaker and `brain_calls`.
+
+Layout as Budget's: `gateway/` library (paths from `GATEWAY_HOME`, default `~/.gateway`; tests set it to scratch):
+`store.py` (`state/gateway.db`, `config.toml`), `claude.py` (`command`, `call`, `ask`, accounts, surfaces), `agent.py`
+(`run_agent`, the shared deny list, `command`, `RUN`), `local.py` (the local model, moved from `~/.jarvis/daemon/local_llm.py`),
+`proc.py` (the file-backed, tree-killing process runner, copied from `core._run_process_blocking`), `cli.py` behind
+`bin/gateway`, `jobs/local-llm-perf.py` (moved from `~/.jarvis/scripts`, still triggered by Jarvis every 5 min),
+`server/app.py` (launchd `com.gateway.server`, `bin/install-launchd [status]`, log `state/logs/server.log`), `config.toml`,
+`tests/test_gateway.py`. Own venv (starlette, uvicorn, httpx for the tests).
+
+### Call sites and their surfaces
+
+| Caller | Surface | Model | Kind |
+|---|---|---|---|
+| Jarvis `daemon/inbound.py` Asana task triage (local first) | `inbound-critical` / `inbound-task-triage` | off / haiku | local, then `brain.work` |
+| Jarvis `daemon/briefing.py` mail and chat triage (local first) | `briefing-triage` / `inbound-message-triage` | off / haiku | local, then `brain.work` |
+| Jarvis `daemon/briefing.py` reply drafts | `inbound-draft` | sonnet | `brain.work` |
+| Jarvis `daemon/reports.py` spoken line | `report-narrate` | haiku | `brain.work` |
+| Jarvis `brain.answer_escalation` | `escalation` | sonnet | `brain.work`, Read/Grep/Glob in the repo |
+| Forge `originate.py` proposer | `originate` | sonnet (= `proposer.MODEL`, checked) | `brain.work` via the host |
+| Forge `delegation.py` criteria scoring | `criteria-score` | haiku | `ask` |
+| Forge `implementer.py` | `job:implementer` | sonnet | `run_agent`, one attempt |
+| HUD `whereami.js`, `merge.js`, `tasks.js` | `hud-whereami`, `hud-commit-message`, `hud-task-classify` | haiku | `POST /ask` |
+| Mind `jobs/session-history.py`, `memory-capture.py`, `vault-capture.py` | `mind-session-history`, `mind-memory-capture`, `mind-vault-capture` | haiku | `ask`, recorded as their jobs |
+| Mind `improve.py` drafts, subject, judge | `mind-improve-draft`, `mind-improve-subject`, `mind-improve-judge` | haiku, sonnet, haiku | `ask` |
+| Mind `contradict.py` | `memory-contradict` | off | local only |
+| Jarvis `scripts/run-*.py` through `jobcommon.run_claude_job` | `job:nightly-reflection`, `job:portfolio-advisor`, `job:consultant-digest`, `job:weekly-activity`, `job:weekly-introspect`, `job:hud-audit`, `job:issue-triage`, `job:checkups` | as before | `run_agent` |
+
+Every model is the one the caller used before. Moving a local-model surface to `shadow`/`local` or a Claude surface to
+another model is a one-line edit in `config.toml`, read at call time (no restart).
+
+### Rules a later edit could break
+
+- **Gateway makes the call and reports what happened.** It records the usage-limit window in Budget (`limits.record`) and
+  returns the hit as `limit`; Jarvis raises the alert (`core.alert_limit`, the alert half of `core.record_limit`; Forge reaches it
+  through the host binding `alert_limit`). Gateway never alerts, pings or files.
+- **brain keeps its policy.** `brain.work(prompt, surface=..., purpose=..., isolated=..., scope=...)` checks `allowed()` (caps,
+  breaker, limit, brake), computes the per-call budget, calls `gateway.acall`, then writes `brain_calls` and moves the breaker.
+  Gateway writes the provider-ledger row (`provider_calls.surface` is now the Gateway surface, not `work`), so brain no longer
+  writes it.
+- **Brain's isolated argv is byte-identical to before** (`--safe-mode`, no `--setting-sources`): G15 measured the proposer on it.
+  `ask()` adds `bare` (`--setting-sources ''`, `--no-session-persistence`), as the HUD's and Mind's calls had. The selftest checks
+  `gateway.model_for("originate") == forge.proposer.MODEL`, and `originate` refuses to call when they differ.
+- **Local-model surfaces keep the caller's logic.** `ask()` on `off|shadow|local` returns the local answer or None; the caller
+  decides the fallback and records shadow rows (`gateway.local.record_shadow`), as it did with `local_llm`.
+- **Ledger.** `ask(..., job=...)` records a `job_calls` row (the weekly job budget); without it a `provider_calls` row under the
+  surface. Mind's three jobs keep their job names. `run_agent` records every attempt as its job.
+- **The service serves only `hud-*` surfaces**, refuses a write carrying `Origin`, and answers only on loopback hosts.
+- The selftest asserts no Jarvis, Forge or Mind module builds its own `claude -p --model` line.
+
+### Moved
+
+- `local_llm_shadow`: no table to move: it never existed in `jarvis.db` (no surface ever left `off`), so no backup was taken.
+  It is created in `state/gateway.db` on first use.
+- `state/local-llm-perf.json(l)` copied to `~/.gateway/state/` (320 samples; one written by the old process after the copy was
+  merged in by timestamp). The Jarvis copies stay until Anze confirms.
+- `[local_llm]` (Jarvis `config.toml`) became `[local]` and `[surfaces]` here; `[implementer] model` became `job:implementer`.
+- Deleted from Jarvis (tracked, now here): `daemon/local_llm.py`, `scripts/local-llm-perf.py`; the HUD's `lib/ledger.js` became
+  `lib/gateway.js` (the client).
+
+### Differs from the design above
+
+- `ask()` on a local surface does not fall back to Haiku itself: each caller keeps its own fallback and shadow comparison (they
+  compare different fields), so behaviour stayed the same. A third primitive, `call()`, carries brain's tool-using, cwd-bound,
+  per-call-budgeted calls.
+- Changed on purpose, small: criteria scoring was a non-isolated call with `--output-format text` (full profile, no cost);
+  it is now an isolated `ask` with JSON output, so its cost is recorded. A Claude result with `is_error` is now a failed call
+  for brain (it was counted ok when the exit code was 0). Mind's three jobs record ok from the call, not from their own parse.
+  The implementer's job detail gained `turns=` and `attempt=`. Job prompts go on stdin instead of argv.
+- Not moved: `g15-replay.py` (run by hand when the proposer prompt changes; it builds its argv with `gateway.command` through
+  `brain.command` and adds `--session-id`) and `brain.triage()` (the Messages API tier, still unbuilt).
+- `gateway-unreachable` comes from a Jarvis job `gateway-check` (every 5 min, `daemon/handlers/gateway_check.py`), resolved by
+  evidence when `/health` answers; `health-check.py` also probes `/health`.
+
+### Checked
+
+Selftest 657/0 before, 659/0 after (two new checks); HUD 148/0 before and after; Budget, Herald 18, Forge, Sentinel 9, Mind 3
+green before and after; Gateway's tests green. Live after the 00:11 restart: `/health` answers (28 surfaces), one
+`hud-commit-message` call through the service ($0.0001, ledger row written), one Mind `summarize()` through the library
+($0.0002), one `run_agent` session accepted by the CLI (stopped at its $0.10 test cap: job sessions load the full profile,
+about 170k cache-creation tokens, as before), `gateway-check` and `local-llm-perf` running on the new paths,
+`gateway-unreachable` #59 (raised before the service was installed) resolved by evidence.

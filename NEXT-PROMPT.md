@@ -1,36 +1,44 @@
 # Next prompt: Gateway
 
-Designed 2026-10-17 (`~/.gateway/DESIGN.md`, decisions at its top); not built yet. One component
-build at a time: each edits `~/.jarvis/config.toml`, the selftest and the daemon. Before 2026-10-21 if possible: Ollama goes in then, and every local surface should come through Gateway.
+**Built and cut over 2026-10-17/18 (DONE).** Every model call on this Mac goes through `~/.gateway`; `DESIGN.md` "As built"
+has the layout, the call-site table, the rules a later edit could break and what differs from the design.
 
 ## When to fire this
 
-Earliest-useful dates, not deadlines; being late costs nothing (Jarvis keeps running as is).
+Earliest-useful dates, not deadlines; being late costs nothing (a broken call shows up as a failed job or HUD fallback,
+and Jarvis alerts `gateway-unreachable` when the service is down).
 
 | When | Step | Waits on |
 |---|---|---|
-| when now (no other component build is running) | build Gateway from its DESIGN.md | the previous build's cutover |
+| 2026-10-18 morning (after 07:30) | first-night check (prompt B below, plus the list under it) | the first night: Mind's sleep at 03:00, the Claude jobs from 03:30 |
+| 2026-10-21 | install Ollama, then set `[local] model`, `enabled = true` and a surface to `"shadow"` in `config.toml` here (no longer Jarvis's `[local_llm]`) | Jarvis's Ollama row (TRIAGE-MODEL-DESIGN.md) |
+| when Anze confirms | delete `~/.jarvis/state/local-llm-perf.json(l)` (copied here) | Anze |
+
+First-night check, read-only:
+- `sqlite3 ~/.budget/state/budget.db "SELECT datetime(ts,'unixepoch','localtime'), job, ok, model, detail FROM job_calls WHERE ts > strftime('%s','2026-10-18') ORDER BY ts"`:
+  hud-audit-nightly, portfolio-advisor-*, nightly-reflection (and the Mind steps) ran with their usual models and `ok = 1`.
+- No job log under `~/.jarvis/logs/` says `is not a Claude surface` or `claude CLI not found`.
+- `~/.mind/state/sleep/` last report: `session-history`, `memory-capture`, `vault-capture` steps ok.
+- `provider_calls` rows since the restart carry the new surface names (`escalation`, `inbound-*`, `report-narrate`, `hud-*`),
+  none under `work`.
+- `~/.gateway/bin/install-launchd status` running; `curl -s http://127.0.0.1:3027/health`.
 
 ## A: advance the work
 
-> Build Gateway. Read `~/.gateway/DESIGN.md`, `~/.jarvis/NEXT-PROMPT.md` (load-bearing rules), and the
-> "As built" sections of `~/.budget`, `~/.sentinel`, `~/.herald` and `~/.forge` DESIGN.md: same layout,
-> same cutover discipline. Work in the main checkouts, not a worktree (the cutover restarts the live
-> daemon: `~/.jarvis/restart.sh` only; the HUD with `launchctl kickstart -k gui/$(id -u)/com.jarvis.hud`).
-> Rules: Gateway never alerts, pings or files; Jarvis triggers it and acts. No behavior change. Back up
-> `jarvis.db` with `sqlite3 .backup` before moving any table; copy rows, never drop a table or delete a
-> backup without Anze's confirmation. Redirect its data in `selftest.py` before anything imports it.
-> Selftest, HUD tests and every component's tests pass before and after. Ask Anze the design's open
-> questions first (AskUserQuestion, one batch). When done: an "As built" section in DESIGN.md, this file
-> marked DONE with its first-night check row, a dated section in `~/.jarvis/JOURNAL.md`; stop and tell
-> me if anything differs from the design.
+> Read `~/.gateway/DESIGN.md` ("As built") and this file, then do the first row of the table above whose date has come and
+> that is not done. Gateway never alerts, pings or files; brain keeps its caps and breaker; brain's isolated argv must stay
+> byte-identical (G15). A model change is a `[surfaces]` edit, never a caller edit. Tests:
+> `~/.gateway/.venv/bin/python ~/.gateway/tests/test_gateway.py` and Jarvis's selftest. Stop and tell me if anything differs
+> from what the design expects.
 
 ## B: status only
 
-> Read `~/.gateway/DESIGN.md` and this file and report whether Gateway is built. Change nothing.
+> Read `~/.gateway/DESIGN.md` and this file, run the first-night check list above and `gateway surfaces`, and report. Change nothing.
 
 ## C: something is broken
 
-> Gateway or the daemon broke during the cutover. First, do not delete `jarvis.db`, a backup or a
-> state file. Run `~/.jarvis/.venv/bin/python ~/.jarvis/status.py` and the selftest, read the daemon
-> log, and report before fixing.
+> A model call broke after the Gateway cutover. First, do not delete `gateway.db`, `budget.db`, a state file or a log.
+> Run `~/.jarvis/.venv/bin/python ~/.jarvis/status.py`, `curl -s http://127.0.0.1:3027/health`,
+> `tail -40 ~/.gateway/state/logs/server.log`, the failing job's log, and `gateway surfaces`; report before fixing. Rolling
+> back is `git revert` of the cutover commits in `~/.jarvis` (6325365, b1fae1f), `~/.mind` (dd0c8e7) and `~/.forge` (f29a727)
+> plus `~/.jarvis/restart.sh`.
