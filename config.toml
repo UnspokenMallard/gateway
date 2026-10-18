@@ -57,4 +57,5 @@ min_memlevel = 30
 "job:hud-audit" = "claude:sonnet"
 "job:issue-triage" = "claude:sonnet"
 "job:checkups" = "claude:sonnet"
+"job:remediate" = "claude:sonnet"          # Jarvis incident remediation (2026-10-18)
 "job:implementer" = "claude:sonnet"        # Forge's implementer (was [implementer] model in Jarvis's config)
