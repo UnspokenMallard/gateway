@@ -12,7 +12,7 @@ and Jarvis alerts `gateway-unreachable` when the service is down).
 |---|---|---|
 | DONE 2026-10-18 11:50 | first-night check for the 10-18 night: all Claude jobs ran with `ok=1` through Gateway, no surface or CLI errors. Open: the weekly `self-improve` row (10-18 06:15, `ok=0`, model `none`) is not yet traced; reminder `aac1d5` (2026-10-19) rechecks the 10-19 night | the 10-18 night |
 | 2026-10-21 | install Ollama, then set `[local] model`, `enabled = true` and a surface to `"shadow"` in `config.toml` here (no longer Jarvis's `[local_llm]`) | Jarvis's Ollama row (TRIAGE-MODEL-DESIGN.md) |
-| when Anze confirms | delete `~/.jarvis/state/local-llm-perf.json(l)` (copied here) | Anze |
+| DONE 2026-10-18 | Jarvis's copies of `state/local-llm-perf.json(l)` deleted (this copy is the one kept) | Anze's go-ahead |
 
 First-night check, read-only:
 - `sqlite3 ~/.budget/state/budget.db "SELECT datetime(ts,'unixepoch','localtime'), job, ok, model, detail FROM job_calls WHERE ts > strftime('%s','2026-10-18') ORDER BY ts"`:
