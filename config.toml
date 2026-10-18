@@ -43,6 +43,7 @@ min_memlevel = 30
 "mind-session-history" = "claude:haiku"
 "mind-memory-capture" = "claude:haiku"
 "mind-vault-capture" = "claude:haiku"
+"mind-draft-triage" = "claude:sonnet"     # decides pending memory drafts nightly (2026-10-18, Anze: act fully)
 "mind-improve-draft" = "claude:haiku"
 "mind-improve-subject" = "claude:sonnet"   # the model under test; IMPROVE_SUBJECT_MODEL still overrides it
 "mind-improve-judge" = "claude:haiku"
