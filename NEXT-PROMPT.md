@@ -10,7 +10,7 @@ and Jarvis alerts `gateway-unreachable` when the service is down).
 
 | When | Step | Waits on |
 |---|---|---|
-| 2026-10-18 morning (after 07:30) | first-night check (prompt B below, plus the list under it) | the first night: Mind's sleep at 03:00, the Claude jobs from 03:30 |
+| DONE 2026-10-18 11:50 | first-night check for the 10-18 night: all Claude jobs ran with `ok=1` through Gateway, no surface or CLI errors. Open: the weekly `self-improve` row (10-18 06:15, `ok=0`, model `none`) is not yet traced; reminder `aac1d5` (2026-10-19) rechecks the 10-19 night | the 10-18 night |
 | 2026-10-21 | install Ollama, then set `[local] model`, `enabled = true` and a surface to `"shadow"` in `config.toml` here (no longer Jarvis's `[local_llm]`) | Jarvis's Ollama row (TRIAGE-MODEL-DESIGN.md) |
 | when Anze confirms | delete `~/.jarvis/state/local-llm-perf.json(l)` (copied here) | Anze |
 
