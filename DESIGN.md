@@ -175,3 +175,27 @@ green before and after; Gateway's tests green. Live after the 00:11 restart: `/h
 ($0.0002), one `run_agent` session accepted by the CLI (stopped at its $0.10 test cap: job sessions load the full profile,
 about 170k cache-creation tokens, as before), `gateway-check` and `local-llm-perf` running on the new paths,
 `gateway-unreachable` #59 (raised before the service was installed) resolved by evidence.
+
+## Local-model watchdog (2026-10-21)
+
+`gateway/jobs/local-llm-watchdog.py`, triggered every 5 min by a Jarvis job (not yet added: see below). Every run sends
+5 one-token probes to the model and takes their p95. Baseline = median of the first 6 check p95s (about 30 min after
+the first runs; measured here, so start it while the host is normal). A check is degraded at p95 > 2x baseline; 3 in a
+row trip it: `[local] enabled = false` in `config.toml` (stops shadow for every surface), `ollama stop <model>` (model
+stays installed), exit 1 with the reason, so Jarvis alerts from the failed job. Swap and memory level are recorded in
+each check and named in the alert; they are not a trip signal of their own. An unloaded model is not probed (the
+check is skipped, the streak kept). Failed or timed-out probes count as `timeout_s`.
+State: `state/local-llm-watchdog.json` (baseline, streak, last 50 checks, `tripped`). A tripped watchdog exits 0 until
+`local-llm-watchdog.py --reset` (also clears the baseline); then set `enabled = true` again by hand.
+Tests: `tests/test_watchdog.py` (injected timings). Not verified: a live degradation, the real probe against Ollama,
+the Jarvis alert text.
+
+Jarvis job to add (`~/.jarvis/config.toml`, next to `local-llm-perf`):
+```toml
+[[jobs]]
+name = "local-llm-watchdog"
+kind = "script"
+schedule = "every:300"
+enabled = true
+payload = { script = '/Users/anzes/.gateway/gateway/jobs/local-llm-watchdog.py', artifact = '/Users/anzes/.gateway/state/local-llm-watchdog.json', timeout_s = 90, artifact_max_age_s = 900 }
+```
