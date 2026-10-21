@@ -153,8 +153,31 @@ def test_service_and_cli():
     assert s.returncode == 0 and json.loads(s.stdout)["answer"] is None  # off: nothing called
 
 
+def test_job_session_strict_mcp():
+    # Every job session starts no MCP servers by default, and the flag is never doubled.
+    args = agent.command("claude", "sonnet", "s1", "Read", None, 1.0)
+    assert args.count("--strict-mcp-config") == 1, args
+    with_flags = agent.command("claude", "sonnet", "s1", "Read", None, 1.0, flags=["--safe-mode"])
+    assert with_flags.count("--strict-mcp-config") == 1 and "--safe-mode" in with_flags, with_flags
+    # Launcher guard: no component builds its own job flags. The flag lives in Gateway only.
+    home = Path.home()
+    roots = [home / ".jarvis" / "scripts", home / ".jarvis" / "daemon", home / ".mind" / "mind",
+             home / ".analyst" / "analyst", home / ".forge" / "forge", home / ".herald", home / ".sentinel",
+             home / ".budget" / "budget"]
+    offenders = []
+    for root in roots:
+        for py in root.rglob("*.py"):
+            if {"tests", "test", "node_modules", ".worktrees", ".venv"} & set(py.parts):
+                continue
+            text = py.read_text(encoding="utf-8", errors="replace")
+            if '"--strict-mcp-config"' in text or "'--strict-mcp-config'" in text:  # code literal, not a comment
+                offenders.append(str(py))
+    assert not offenders, offenders
+
+
 if __name__ == "__main__":
     test_command()
+    test_job_session_strict_mcp()
     test_routing_and_parse()
     test_local_shadow()
     test_run_agent()

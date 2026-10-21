@@ -59,9 +59,13 @@ def _log(log_file: Path | None, text: str) -> None:
 
 def command(exe_path: str, model: str, session: str, tools: str, allow: list[str] | None, budget_usd: float,
             scope: str = "personal", flags: list[str] | None = None, deny: bool = True) -> list[str]:
-    """The job session's argument list. The prompt goes on stdin."""
+    """The job session's argument list. The prompt goes on stdin.
+
+    `--strict-mcp-config` is always on: a job session starts no MCP servers, so the account's
+    connectors never put their tool schemas (~170k tokens, 2026-10-19) in turn 1. Callers opt out
+    of nothing; a caller that needs an MCP server must say so in code here, not per call."""
     own_spill = f"Read({rule_path(claude.CONFIG_DIRS[scope] / 'projects')}/*/{session}/**)"
-    args = [exe_path, "-p", "--model", model, "--session-id", session, *(flags or []),
+    args = [exe_path, "-p", "--model", model, "--session-id", session, "--strict-mcp-config", *(flags or []),
             "--permission-mode", "dontAsk", "--tools", tools, "--allowedTools", *(allow or []), own_spill]
     if deny:
         args += ["--disallowedTools", *DENY_TOOLS]
