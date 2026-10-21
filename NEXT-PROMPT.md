@@ -23,6 +23,34 @@ First-night check, read-only:
   none under `work`.
 - `~/.gateway/bin/install-launchd status` running; `curl -s http://127.0.0.1:3027/health`.
 
+## Audit 2026-10-21: your items
+
+From the Jarvis audit (HUD task audit-jarvis-and-all-its-com-e5a9). The evidence, effort, risk and
+done-criteria of each item are in `~/.jarvis/AUDIT-2026-10-21.md`; the phases and Anze's decisions
+are in `~/.jarvis/NEXT-PROMPT.md`. Build an item only after Anze approves its phase. Prompt A below
+covers these rows too. The rule stays: this component measures or knows; Jarvis alerts and acts.
+
+- **A05 (Phase 0, do first)** `gateway/agent.py` `command()` still does not pass
+  `--strict-mcp-config` (checked 2026-10-21). Jarvis's own jobs add it through
+  `jobcommon.MCP_OFF` and Analyst's through `JOB_FLAGS`, but Mind's `agentjob.run_claude_job`
+  passes no flags, so nightly-reflection loads every claude.ai connector and thrashes on
+  autocompact. Add the flag in `command()` for job sessions. Done: nightly-reflection's log no
+  longer warns about claude.ai MCP servers, and a run's first turn is under 30k tokens.
+- **A30 (Phase 3)** hud-audit-nightly hits `error_max_budget_usd` in 23 of 71 runs ($24.88 of its
+  $46.41 in 14 days). The cap is set by the caller; Gateway should report cap-hits per surface so the
+  caller can be fixed, and a capped run should keep its partial output.
+- **A36 (Phase 3)** The local shadow has no data: Ollama is not installed, and the surfaces it would
+  replace cost about $0.31 in 14 days. Anze decides finish or drop (D10). The 10-21 Ollama row in
+  `~/.jarvis/NEXT-PROMPT.md` waits on that answer.
+- **A42 (Phase 4)** `~/.analyst/analyst/common.py` and `~/.mind/mind/agentjob.py` keep their own
+  copies of `run_claude_job`; fold them into Gateway's client.
+
+| When (earliest useful, not a deadline) | Step | Waits on |
+|---|---|---|
+| with Phase 0 | A05: `--strict-mcp-config` in `command()` | Phase 0 approval |
+| after D10 | A36: install and bench, or mark the local path dropped | Anze |
+| with Phase 3 | A30 cap-hit report | Phase 3 approval |
+
 ## A: advance the work
 
 > Read `~/.gateway/DESIGN.md` ("As built") and this file, then do the first row of the table above whose date has come and
