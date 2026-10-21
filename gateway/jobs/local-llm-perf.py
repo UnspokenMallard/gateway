@@ -44,6 +44,8 @@ MAX_BUSY_FRACTION = 0.01
 MAX_SWAP_GROWTH_MB = 512
 MAX_MEMLEVEL_DROP = 5
 MAX_PROBE_RATIO = 1.2
+MIN_LOADED_SAMPLES = 20  # shortcut: p95 over fewer samples is one slow outlier, not a trend
+MIN_PROBE_FLOOR_S = 0.1  # a probe breach must also be a felt slowdown of at least this
 
 
 def _run(argv: list[str], timeout: float = 10) -> str:
@@ -184,7 +186,8 @@ def verdict(samples: list[dict], now: float, busy: list[float]) -> dict:
     loaded = [s for s in recent if s.get("model_loaded")]
     for key, name in (("hud_probe_s", "HUD probe"), ("mem_probe_s", "mem search probe")):
         bp, lp = pct([s.get(key) for s in base], 95), pct([s.get(key) for s in loaded], 95)
-        if bp and lp is not None and lp > bp * MAX_PROBE_RATIO:
+        enough = len([s for s in loaded if s.get(key) is not None]) >= MIN_LOADED_SAMPLES
+        if enough and bp and lp is not None and lp > bp * MAX_PROBE_RATIO and lp - bp > MIN_PROBE_FLOOR_S:
             b.append(f"{name} p95 {lp:.3f}s while loaded vs baseline {bp:.3f}s (budget x{MAX_PROBE_RATIO})")
     out.update(state="breach" if b else "within-budget", rss_peak_mb=rss, busy_peak=round(worst_busy, 4),
                swap_p95_mb=[bs, rs], memlevel_p5=[bl, rl])
