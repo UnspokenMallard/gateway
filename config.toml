@@ -7,9 +7,9 @@
 # (jobs/local-llm-perf.py). Then set `model`, `enabled = true` and each local surface to "shadow";
 # "local" only after the design's step 3 gate (>= 95% agreement, no CRITICAL-to-NORMAL miss, within
 # the performance budget). Host decided by Anze 2026-10-16: this Mac; anzes-pc can be added later.
-enabled = false
+enabled = true
 host = "http://127.0.0.1:11434"
-model = ""
+model = "qwen3.5:4b"
 timeout_s = 10
 keep_alive = "10m"
 # Skip local calls (Haiku answers instead) while kern.memorystatus_level is below this.
@@ -19,8 +19,8 @@ min_memlevel = 30
 [surfaces]
 # Local-model surfaces: "off" | "shadow" | "local". The caller asks Claude through its own surface
 # when the local model does not answer.
-"inbound-critical" = "off"       # Asana task triage (Jarvis daemon/inbound.py)
-"briefing-triage" = "off"        # mail and chat triage (Jarvis daemon/briefing.py)
+"inbound-critical" = "shadow"       # Asana task triage (Jarvis daemon/inbound.py)
+"briefing-triage" = "shadow"        # mail and chat triage (Jarvis daemon/briefing.py)
 # memory-contradict (Mind contradict.py): checks a new note against its closest notes. It has no
 # Haiku path, so "shadow" and "local" behave the same; it only warns, never blocks.
 "memory-contradict" = "off"

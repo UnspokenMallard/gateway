@@ -23,6 +23,7 @@ import json
 import logging
 import re
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any, Mapping
@@ -108,6 +109,31 @@ def _post(url: str, body: dict, timeout_s: float) -> dict:
         return json.load(resp)
 
 
+def _json_object(text: str) -> dict:
+    match = re.search(r"\{.*\}", text, re.S)
+    answer = json.loads(match.group(0) if match else text)
+    if not isinstance(answer, dict):
+        raise ValueError("answer is not an object")
+    return answer
+
+
+def _chat(section: Mapping[str, Any], body: dict, schema: dict) -> dict:
+    """POST /api/chat. Some models reject `think` (400) or a `format` schema (501, qwen3.5 on Ollama 0.40.7):
+    drop what is rejected and ask for the JSON in the prompt instead."""
+    url, timeout = f"{section['host'].rstrip('/')}/api/chat", float(section["timeout_s"])
+    for drop in ((), ("format",), ("think",), ("think", "format")):
+        attempt = {k: v for k, v in body.items() if k not in drop}
+        if "format" in drop:
+            msg = dict(body["messages"][0])
+            msg["content"] += "\n\nAnswer with only a JSON object matching this JSON schema: " + json.dumps(schema)
+            attempt["messages"] = [msg]
+        try:
+            return _post(url, attempt, timeout)
+        except urllib.error.HTTPError:
+            continue
+    raise RuntimeError("every request variant was rejected")
+
+
 def judge_sync(surface: str, prompt: str, schema: dict, cfg: Mapping[str, Any] | None = None,
                *, scope: str = "personal") -> dict | None:
     """The local model's answer as a dict matching `schema`, or None. Never raises."""
@@ -120,13 +146,11 @@ def judge_sync(surface: str, prompt: str, schema: dict, cfg: Mapping[str, Any] |
         ledger.record_call(f"local:{surface}", False, 0.0, 0.0, section["model"], f"skipped: {why}", scope)
         return None
     body = {"model": section["model"], "messages": [{"role": "user", "content": prompt}], "stream": False,
-            "format": schema, "options": {"temperature": 0}, "keep_alive": section["keep_alive"]}
+            "think": False, "format": schema, "options": {"temperature": 0}, "keep_alive": section["keep_alive"]}
     started = time.time()
     try:
-        doc = _post(f"{section['host'].rstrip('/')}/api/chat", body, float(section["timeout_s"]))
-        answer = json.loads(doc["message"]["content"])
-        if not isinstance(answer, dict):
-            raise ValueError("answer is not an object")
+        doc = _chat(section, body, schema)
+        answer = _json_object(doc["message"]["content"])
     except Exception as exc:  # noqa: BLE001 - any failure means "ask Haiku as before"
         ledger.record_call(f"local:{surface}", False, time.time() - started, 0.0, section["model"],
                            f"failed: {exc}"[:300], scope)

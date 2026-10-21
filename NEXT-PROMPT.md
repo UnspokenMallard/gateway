@@ -42,7 +42,7 @@ covers these rows too. The rule stays: this component measures or knows; Jarvis 
 - **A36 (Phase 3)** The local shadow has no data, and the surfaces it would
   replace cost about $0.31 in 14 days. Decided 2026-10-21 (D10): finish it. **Step 1 done 2026-10-21:**
   Ollama 0.40.7 runs (brew service, 127.0.0.1) and the bench is in `tools/local-bench/` (RESULTS.md);
-  waiting on Anze's model pick, then `[local]` config and at least 2 weeks of shadow before any surface flips to `local` (the gate in
+  qwen3.5:4b picked; `[local]` enabled and `inbound-critical`/`briefing-triage` set to shadow in the branch config (live after merge); then at least 2 weeks of shadow before any surface flips to `local` (the gate in
   `~/.jarvis/NEXT-PROMPT.md`).
 - **A42 (Phase 4)** `~/.analyst/analyst/common.py` and `~/.mind/mind/agentjob.py` keep their own
   copies of `run_claude_job`; fold them into Gateway's client.
