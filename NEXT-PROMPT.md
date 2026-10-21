@@ -40,15 +40,16 @@ covers these rows too. The rule stays: this component measures or knows; Jarvis 
   $46.41 in 14 days). The cap is set by the caller; Gateway should report cap-hits per surface so the
   caller can be fixed, and a capped run should keep its partial output.
 - **A36 (Phase 3)** The local shadow has no data: Ollama is not installed, and the surfaces it would
-  replace cost about $0.31 in 14 days. Anze decides finish or drop (D10). The 10-21 Ollama row in
-  `~/.jarvis/NEXT-PROMPT.md` waits on that answer.
+  replace cost about $0.31 in 14 days. Decided 2026-10-21 (D10): finish it. Install Ollama, bench 2-3
+  models, then at least 2 weeks of shadow before any surface flips to `local` (the gate in
+  `~/.jarvis/NEXT-PROMPT.md`).
 - **A42 (Phase 4)** `~/.analyst/analyst/common.py` and `~/.mind/mind/agentjob.py` keep their own
   copies of `run_claude_job`; fold them into Gateway's client.
 
 | When (earliest useful, not a deadline) | Step | Waits on |
 |---|---|---|
 | with Phase 0 | A05: `--strict-mcp-config` in `command()` | Phase 0 approval |
-| after D10 | A36: install and bench, or mark the local path dropped | Anze |
+| 2026-10-22 or later | A36: install Ollama and bench (design step 1), then shadow | nothing; independent of the phases |
 | with Phase 3 | A30 cap-hit report | Phase 3 approval |
 
 ## A: advance the work
