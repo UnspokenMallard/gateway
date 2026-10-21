@@ -1,0 +1,539 @@
+{
+ "model": "gemma3:4b",
+ "n": 50,
+ "accuracy": 0.88,
+ "acc_real": 0.7916666666666666,
+ "acc_synth": 0.9615384615384616,
+ "critical_to_normal": [
+  34
+ ],
+ "normal_to_critical": [
+  4,
+  7,
+  17,
+  19,
+  23
+ ],
+ "invalid": [],
+ "warm_p50": 0.2101588249206543,
+ "warm_p95": 0.2570161819458008,
+ "warm_max": 0.2624039649963379,
+ "cold_wall": [
+  2.47,
+  1.29,
+  1.29
+ ],
+ "cold_load": [
+  2.09,
+  1.05,
+  1.05
+ ],
+ "peak_rss_mb": 4130,
+ "hud_idle_p95": 0.0046269893646240234,
+ "mem_idle_p95": 0.26574277877807617,
+ "hud_burst_p95": 0.08444595336914062,
+ "mem_burst_p95": 0.35446691513061523,
+ "probes": 9,
+ "results": [
+  {
+   "id": 0,
+   "src": "asana",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.14367103576660156,
+   "total": 0.143110791,
+   "evals": 9,
+   "prompt_tokens": 256
+  },
+  {
+   "id": 1,
+   "src": "asana",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.19138693809509277,
+   "total": 0.190909667,
+   "evals": 9,
+   "prompt_tokens": 186
+  },
+  {
+   "id": 2,
+   "src": "asana",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.19436192512512207,
+   "total": 0.193687291,
+   "evals": 9,
+   "prompt_tokens": 138
+  },
+  {
+   "id": 3,
+   "src": "asana",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.2314157485961914,
+   "total": 0.230695958,
+   "evals": 11,
+   "prompt_tokens": 179
+  },
+  {
+   "id": 4,
+   "src": "asana",
+   "truth": "NORMAL",
+   "pred": "CRITICAL",
+   "wall": 0.20019793510437012,
+   "total": 0.199019416,
+   "evals": 10,
+   "prompt_tokens": 176
+  },
+  {
+   "id": 5,
+   "src": "asana",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.20029282569885254,
+   "total": 0.199280709,
+   "evals": 10,
+   "prompt_tokens": 213
+  },
+  {
+   "id": 6,
+   "src": "asana",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.20504498481750488,
+   "total": 0.203954833,
+   "evals": 9,
+   "prompt_tokens": 201
+  },
+  {
+   "id": 7,
+   "src": "asana",
+   "truth": "NORMAL",
+   "pred": "CRITICAL",
+   "wall": 0.2515902519226074,
+   "total": 0.250442416,
+   "evals": 13,
+   "prompt_tokens": 189
+  },
+  {
+   "id": 8,
+   "src": "asana",
+   "truth": "CRITICAL",
+   "pred": "CRITICAL",
+   "wall": 0.2061309814453125,
+   "total": 0.205365291,
+   "evals": 11,
+   "prompt_tokens": 210
+  },
+  {
+   "id": 9,
+   "src": "asana",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.19060683250427246,
+   "total": 0.189871375,
+   "evals": 9,
+   "prompt_tokens": 147
+  },
+  {
+   "id": 10,
+   "src": "asana",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.23234200477600098,
+   "total": 0.23152825,
+   "evals": 11,
+   "prompt_tokens": 139
+  },
+  {
+   "id": 11,
+   "src": "asana",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.1974630355834961,
+   "total": 0.196565833,
+   "evals": 10,
+   "prompt_tokens": 151
+  },
+  {
+   "id": 12,
+   "src": "asana",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.2308359146118164,
+   "total": 0.230121,
+   "evals": 11,
+   "prompt_tokens": 140
+  },
+  {
+   "id": 13,
+   "src": "asana",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.2570161819458008,
+   "total": 0.256115,
+   "evals": 12,
+   "prompt_tokens": 147
+  },
+  {
+   "id": 14,
+   "src": "asana",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.24729084968566895,
+   "total": 0.246512125,
+   "evals": 12,
+   "prompt_tokens": 151
+  },
+  {
+   "id": 15,
+   "src": "asana",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.1912088394165039,
+   "total": 0.190532708,
+   "evals": 9,
+   "prompt_tokens": 153
+  },
+  {
+   "id": 16,
+   "src": "asana",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.19318413734436035,
+   "total": 0.192102875,
+   "evals": 9,
+   "prompt_tokens": 152
+  },
+  {
+   "id": 17,
+   "src": "asana",
+   "truth": "NORMAL",
+   "pred": "CRITICAL",
+   "wall": 0.20418524742126465,
+   "total": 0.203263709,
+   "evals": 10,
+   "prompt_tokens": 199
+  },
+  {
+   "id": 18,
+   "src": "asana",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.24491286277770996,
+   "total": 0.244212708,
+   "evals": 12,
+   "prompt_tokens": 151
+  },
+  {
+   "id": 19,
+   "src": "asana",
+   "truth": "NORMAL",
+   "pred": "CRITICAL",
+   "wall": 0.20043683052062988,
+   "total": 0.199521791,
+   "evals": 10,
+   "prompt_tokens": 170
+  },
+  {
+   "id": 20,
+   "src": "asana",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.18986201286315918,
+   "total": 0.189306208,
+   "evals": 9,
+   "prompt_tokens": 163
+  },
+  {
+   "id": 21,
+   "src": "asana",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.2624039649963379,
+   "total": 0.261535709,
+   "evals": 12,
+   "prompt_tokens": 274
+  },
+  {
+   "id": 22,
+   "src": "asana",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.20294976234436035,
+   "total": 0.201944625,
+   "evals": 10,
+   "prompt_tokens": 244
+  },
+  {
+   "id": 23,
+   "src": "asana",
+   "truth": "NORMAL",
+   "pred": "CRITICAL",
+   "wall": 0.2103121280670166,
+   "total": 0.209541042,
+   "evals": 11,
+   "prompt_tokens": 160
+  },
+  {
+   "id": 24,
+   "src": "synthetic",
+   "truth": "CRITICAL",
+   "pred": "CRITICAL",
+   "wall": 0.21227192878723145,
+   "total": 0.211230333,
+   "evals": 11,
+   "prompt_tokens": 170
+  },
+  {
+   "id": 25,
+   "src": "synthetic",
+   "truth": "CRITICAL",
+   "pred": "CRITICAL",
+   "wall": 0.2105848789215088,
+   "total": 0.209816,
+   "evals": 11,
+   "prompt_tokens": 159
+  },
+  {
+   "id": 26,
+   "src": "synthetic",
+   "truth": "CRITICAL",
+   "pred": "CRITICAL",
+   "wall": 0.2101588249206543,
+   "total": 0.209504,
+   "evals": 11,
+   "prompt_tokens": 160
+  },
+  {
+   "id": 27,
+   "src": "synthetic",
+   "truth": "CRITICAL",
+   "pred": "CRITICAL",
+   "wall": 0.2169170379638672,
+   "total": 0.216243083,
+   "evals": 11,
+   "prompt_tokens": 158
+  },
+  {
+   "id": 28,
+   "src": "synthetic",
+   "truth": "CRITICAL",
+   "pred": "CRITICAL",
+   "wall": 0.2492070198059082,
+   "total": 0.248711959,
+   "evals": 13,
+   "prompt_tokens": 158
+  },
+  {
+   "id": 29,
+   "src": "synthetic",
+   "truth": "CRITICAL",
+   "pred": "CRITICAL",
+   "wall": 0.2163069248199463,
+   "total": 0.215483416,
+   "evals": 11,
+   "prompt_tokens": 168
+  },
+  {
+   "id": 30,
+   "src": "synthetic",
+   "truth": "CRITICAL",
+   "pred": "CRITICAL",
+   "wall": 0.19661521911621094,
+   "total": 0.195970875,
+   "evals": 10,
+   "prompt_tokens": 164
+  },
+  {
+   "id": 31,
+   "src": "synthetic",
+   "truth": "CRITICAL",
+   "pred": "CRITICAL",
+   "wall": 0.20848608016967773,
+   "total": 0.207796875,
+   "evals": 11,
+   "prompt_tokens": 168
+  },
+  {
+   "id": 32,
+   "src": "synthetic",
+   "truth": "CRITICAL",
+   "pred": "CRITICAL",
+   "wall": 0.20955491065979004,
+   "total": 0.208894,
+   "evals": 11,
+   "prompt_tokens": 153
+  },
+  {
+   "id": 33,
+   "src": "synthetic",
+   "truth": "CRITICAL",
+   "pred": "CRITICAL",
+   "wall": 0.25756168365478516,
+   "total": 0.256830459,
+   "evals": 13,
+   "prompt_tokens": 152
+  },
+  {
+   "id": 34,
+   "src": "synthetic",
+   "truth": "CRITICAL",
+   "pred": "NORMAL",
+   "wall": 0.2001039981842041,
+   "total": 0.199423709,
+   "evals": 10,
+   "prompt_tokens": 168
+  },
+  {
+   "id": 35,
+   "src": "synthetic",
+   "truth": "CRITICAL",
+   "pred": "CRITICAL",
+   "wall": 0.20807290077209473,
+   "total": 0.206964042,
+   "evals": 11,
+   "prompt_tokens": 157
+  },
+  {
+   "id": 36,
+   "src": "synthetic",
+   "truth": "CRITICAL",
+   "pred": "CRITICAL",
+   "wall": 0.22866487503051758,
+   "total": 0.227624208,
+   "evals": 12,
+   "prompt_tokens": 165
+  },
+  {
+   "id": 37,
+   "src": "synthetic",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.24088597297668457,
+   "total": 0.240161709,
+   "evals": 12,
+   "prompt_tokens": 152
+  },
+  {
+   "id": 38,
+   "src": "synthetic",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.19702696800231934,
+   "total": 0.196307458,
+   "evals": 10,
+   "prompt_tokens": 150
+  },
+  {
+   "id": 39,
+   "src": "synthetic",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.19134998321533203,
+   "total": 0.190593208,
+   "evals": 9,
+   "prompt_tokens": 151
+  },
+  {
+   "id": 40,
+   "src": "synthetic",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.19783496856689453,
+   "total": 0.19706475,
+   "evals": 9,
+   "prompt_tokens": 147
+  },
+  {
+   "id": 41,
+   "src": "synthetic",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.2374420166015625,
+   "total": 0.236327667,
+   "evals": 12,
+   "prompt_tokens": 146
+  },
+  {
+   "id": 42,
+   "src": "synthetic",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.2162611484527588,
+   "total": 0.215128042,
+   "evals": 10,
+   "prompt_tokens": 168
+  },
+  {
+   "id": 43,
+   "src": "synthetic",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.24685955047607422,
+   "total": 0.245970875,
+   "evals": 12,
+   "prompt_tokens": 145
+  },
+  {
+   "id": 44,
+   "src": "synthetic",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.18715381622314453,
+   "total": 0.186603,
+   "evals": 9,
+   "prompt_tokens": 155
+  },
+  {
+   "id": 45,
+   "src": "synthetic",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.2364490032196045,
+   "total": 0.235939625,
+   "evals": 12,
+   "prompt_tokens": 153
+  },
+  {
+   "id": 46,
+   "src": "synthetic",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.19098496437072754,
+   "total": 0.190313167,
+   "evals": 9,
+   "prompt_tokens": 158
+  },
+  {
+   "id": 47,
+   "src": "synthetic",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.22876501083374023,
+   "total": 0.228127625,
+   "evals": 11,
+   "prompt_tokens": 143
+  },
+  {
+   "id": 48,
+   "src": "synthetic",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.2295689582824707,
+   "total": 0.228456042,
+   "evals": 11,
+   "prompt_tokens": 154
+  },
+  {
+   "id": 49,
+   "src": "synthetic",
+   "truth": "NORMAL",
+   "pred": "NORMAL",
+   "wall": 0.22880196571350098,
+   "total": 0.227738042,
+   "evals": 12,
+   "prompt_tokens": 167
+  }
+ ]
+}

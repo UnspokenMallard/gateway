@@ -39,9 +39,10 @@ covers these rows too. The rule stays: this component measures or knows; Jarvis 
 - **A30 (Phase 3)** hud-audit-nightly hits `error_max_budget_usd` in 23 of 71 runs ($24.88 of its
   $46.41 in 14 days). The cap is set by the caller; Gateway should report cap-hits per surface so the
   caller can be fixed, and a capped run should keep its partial output.
-- **A36 (Phase 3)** The local shadow has no data: Ollama is not installed, and the surfaces it would
-  replace cost about $0.31 in 14 days. Decided 2026-10-21 (D10): finish it. Install Ollama, bench 2-3
-  models, then at least 2 weeks of shadow before any surface flips to `local` (the gate in
+- **A36 (Phase 3)** The local shadow has no data, and the surfaces it would
+  replace cost about $0.31 in 14 days. Decided 2026-10-21 (D10): finish it. **Step 1 done 2026-10-21:**
+  Ollama 0.40.7 runs (brew service, 127.0.0.1) and the bench is in `tools/local-bench/` (RESULTS.md);
+  waiting on Anze's model pick, then `[local]` config and at least 2 weeks of shadow before any surface flips to `local` (the gate in
   `~/.jarvis/NEXT-PROMPT.md`).
 - **A42 (Phase 4)** `~/.analyst/analyst/common.py` and `~/.mind/mind/agentjob.py` keep their own
   copies of `run_claude_job`; fold them into Gateway's client.
@@ -49,7 +50,7 @@ covers these rows too. The rule stays: this component measures or knows; Jarvis 
 | When (earliest useful, not a deadline) | Step | Waits on |
 |---|---|---|
 | with Phase 0 | A05: `--strict-mcp-config` in `command()` | Phase 0 approval |
-| 2026-10-22 or later | A36: install Ollama and bench (design step 1), then shadow | nothing; independent of the phases |
+| after Anze picks a model | A36: set `[local]`/`[surfaces]` shadow (design step 2) | Anze's model pick from `tools/local-bench/RESULTS.md` |
 | with Phase 3 | A30 cap-hit report | Phase 3 approval |
 
 ## A: advance the work
