@@ -58,4 +58,5 @@ min_memlevel = 30
 "job:issue-triage" = "claude:sonnet"
 "job:checkups" = "claude:sonnet"
 "job:remediate" = "claude:sonnet"          # Jarvis incident remediation (2026-10-18)
+"job:proposer" = "claude:sonnet"           # Mind's nightly Proposer edit agent (2026-10-21)
 "job:implementer" = "claude:sonnet"        # Forge's implementer (was [implementer] model in Jarvis's config)
