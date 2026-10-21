@@ -23,7 +23,7 @@ min_memlevel = 30
 "briefing-triage" = "shadow"        # mail and chat triage (Jarvis daemon/briefing.py)
 # memory-contradict (Mind contradict.py): checks a new note against its closest notes. It has no
 # Haiku path, so "shadow" and "local" behave the same; it only warns, never blocks.
-"memory-contradict" = "off"
+"memory-contradict" = "local"   # D10, 2026-10-21: warn-only, no Haiku path
 
 # Claude surfaces: "claude:<model>". Each keeps the model it had before Gateway (2026-10-17).
 # Jarvis's brain (its caps, breaker and brain_calls stay in Jarvis):
