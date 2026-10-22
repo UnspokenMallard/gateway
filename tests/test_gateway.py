@@ -155,6 +155,31 @@ def test_run_agent():
         agent.RUN = saved
 
 
+def test_job_shadow():
+    done = json.dumps({"type": "result", "subtype": "success", "total_cost_usd": 0.05, "num_turns": 2,
+                       "result": "the same review", "permission_denials": [{"tool_name": "Write"}]})
+    cfg = {**store.load_config(), "shadow": {"until": "2999-01-01", "jobs": {"checkups": "claude:haiku"}}}
+    saved = agent.RUN
+    try:
+        agent.RUN = fake_run(done)
+        n = len(RAN)
+        out = gateway.run_agent("checkups", "p", "Read,Write,Bash", ["Read(//x/**)", "Write(//x/r.md)"], 2.0, cfg=cfg)
+        assert out["ok"] and len(RAN) == n + 2  # the live run, then Haiku's
+        cmd = RAN[-1]["cmd"]
+        assert cmd[cmd.index("--model") + 1] == "haiku" and cmd[cmd.index("--tools") + 1] == "Read,Grep,Glob"
+        assert "Write(//x/r.md)" not in cmd and "Read(//x/**)" in cmd  # read-only, whatever the job may write
+        assert rows("SELECT job, ok, model FROM job_calls ORDER BY id DESC LIMIT 1") == [("checkups-shadow", 1, "haiku")]
+        with store.connect() as conn:
+            shadow = conn.execute("SELECT surface, agree, detail FROM local_llm_shadow ORDER BY id DESC LIMIT 1").fetchone()
+        assert shadow[:2] == ("job:checkups", 1) and "denials=Write" in shadow[2], shadow
+        n = len(RAN)
+        gateway.run_agent("checkups", "p", "Read", None, 2.0, cfg={**cfg, "shadow": {"until": "2000-01-01", "jobs": {"checkups": "x"}}})
+        gateway.run_agent("issue-triage", "p", "Read", None, 2.0, cfg=cfg)
+        assert len(RAN) == n + 2  # an ended shadow and an unlisted job run once each
+    finally:
+        agent.RUN = saved
+
+
 def test_proc_timeout_kills():
     code, out = proc.run([sys.executable, "-c", "import time; time.sleep(30)"], timeout_s=1)
     assert code == 124 and "timeout" in out
@@ -214,6 +239,7 @@ if __name__ == "__main__":
     test_local_shadow()
     test_local_format_501_fallback()
     test_run_agent()
+    test_job_shadow()
     test_proc_timeout_kills()
     test_service_and_cli()
     print("ok")

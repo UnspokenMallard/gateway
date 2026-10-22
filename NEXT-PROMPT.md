@@ -12,6 +12,7 @@ and Jarvis alerts `gateway-unreachable` when the service is down).
 |---|---|---|
 | DONE 2026-10-18 11:50 | first-night check for the 10-18 night: all Claude jobs ran with `ok=1` through Gateway, no surface or CLI errors. Open: the weekly `self-improve` row (10-18 06:15, `ok=0`, model `none`) is not yet traced; reminder `aac1d5` (2026-10-19) rechecks the 10-19 night | the 10-18 night |
 | 2026-10-21 | install Ollama, then set `[local] model`, `enabled = true` and a surface to `"shadow"` in `config.toml` here (no longer Jarvis's `[local_llm]`) | Jarvis's Ollama row (TRIAGE-MODEL-DESIGN.md) |
+| 2026-10-29 | read the Haiku shadow of `portfolio-advisor-work` and `review-hud-tasks` (T6, started when this merges; `[shadow] until` in `config.toml`): `SELECT surface, count(*), sum(agree), detail FROM local_llm_shadow WHERE surface LIKE 'job:%' GROUP BY surface`, and the cost of the `*-shadow` rows in `job_calls`. Sonnet stays live. Haiku is read-only, so a Haiku answer that only says "Write denied" is expected for review-hud-tasks; judge its review text | a week of runs |
 | DONE 2026-10-18 | Jarvis's copies of `state/local-llm-perf.json(l)` deleted (this copy is the one kept) | Anze's go-ahead |
 
 First-night check, read-only:

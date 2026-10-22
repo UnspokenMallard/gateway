@@ -60,3 +60,14 @@ min_memlevel = 30
 "job:remediate" = "claude:sonnet"          # Jarvis incident remediation (2026-10-18)
 "job:proposer" = "claude:sonnet"           # Mind's nightly Proposer edit agent (2026-10-21)
 "job:implementer" = "claude:sonnet"        # Forge's implementer (was [implementer] model in Jarvis's config)
+"job:shadow-haiku" = "claude:haiku"        # the Haiku shadow runs below (T6, 2026-10-22)
+
+[shadow]
+# A week of read-only Haiku runs next to two small Sonnet jobs (gateway/agent.py `_shadow`). Neither reply
+# goes straight to Anze. Sonnet stays live. Both answers land in state/gateway.db `local_llm_shadow`
+# (surface `job:<job>`); read them with `gateway.local.agreement()` or by SQL. The shadow ends after `until`.
+until = "2026-10-29"
+
+[shadow.jobs]
+"portfolio-advisor-work" = "claude:haiku"
+"review-hud-tasks" = "claude:haiku"
