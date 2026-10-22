@@ -128,11 +128,17 @@ def test_run_agent():
         assert cmd[cmd.index("--model") + 1] == "sonnet" and "--disallowedTools" in cmd and RAN[-1]["input"] == "do it"
         assert rows("SELECT job, ok, cost_usd, model FROM job_calls ORDER BY id DESC LIMIT 1") == \
             [("checkups", 1, 0.4, "sonnet")]
+        assert rows("SELECT detail, reason, attempt FROM job_calls ORDER BY id DESC LIMIT 1") == \
+            [("success turns=3 attempt=1 denials=1[Bash]", "", 1)]  # names of the denied tools, not just a count
+        agent.reject(out, "no artifact")  # the job refuses the output of a call that succeeded
+        assert rows("SELECT ok, reason FROM job_calls ORDER BY id DESC LIMIT 1") == [(1, "no artifact")]
         assert "wrote it" in log.read_text()
         n = len(RAN)
         agent.RUN = fake_run("fetch failed", code=1)
         out = gateway.run_agent("checkups", "p", "Read", None, 1.0, max_attempts=2, backoff_s=0)
         assert out["code"] == 1 and len(RAN) == n + 2  # a transient error is retried, then given up
+        assert rows("SELECT ok, reason, attempt FROM job_calls ORDER BY id DESC LIMIT 2") == \
+            [(0, "no-result", 2), (0, "no-result", 1)]  # each attempt is a row with its number and why it was wasted
         agent.RUN = fake_run(json.dumps({"type": "result", "subtype": "error_max_budget_usd", "total_cost_usd": 1.0}), 1)
         out = gateway.run_agent("checkups", "p", "Read", None, 1.0, max_attempts=3, backoff_s=0)
         assert out["subtype"] == "error_max_budget_usd" and len(RAN) == n + 3  # the cap is never retried

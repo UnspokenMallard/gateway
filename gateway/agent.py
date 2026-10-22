@@ -110,7 +110,8 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
     """One job session under its declared limits. Never raises.
 
     `{"code", "ok", "subtype", "cost_usd", "turns", "result", "denials", "session", "limit",
-    "output", "duration_s", "model", "reason"}` for the last attempt; `code` is the exit code
+    "output", "duration_s", "model", "reason", "ledger_id"}` for the last attempt (`denials` is the list of
+    denied tool names, `ledger_id` the Budget row to hand to `reject`); `code` is the exit code
     (1 when the gate refused or the cap stopped it). The caller still asserts its artifact.
     `flags` are extra CLI flags (the implementer's `--safe-mode --restricted`); `deny=False`
     drops the shared deny list for a caller whose allow rules are already a closed set.
@@ -160,9 +161,13 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
             limits.note_success(claude.provider_of(scope))
         detail = f"{note + ' ' if note else ''}{subtype} turns={turns if turns is not None else '?'} attempt={attempt}"
         if denials:
-            detail += f" denials={len(denials)}"
+            detail += f" denials={len(denials)}[{','.join(denials)}]"
+        row = None
         try:
-            ledger.record_job(job, ok, duration, cost, model, detail, scope=scope)
+            # `ok` is only "the call succeeded"; a failed call's subtype is its `reason`, and
+            # `reject()` adds one later when the job refuses the output of a call that succeeded.
+            row = ledger.record_job(job, ok, duration, cost, model, detail, scope=scope,
+                                    reason="" if ok else subtype, attempt=attempt)
         except Exception as exc:  # noqa: BLE001
             _log(log_file, f"(could not record the job call in Budget: {exc})")
         cost_s = f"{cost:.4f}".rstrip("0").rstrip(".") if cost is not None else "-"
@@ -172,7 +177,7 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
             _log(log_file, str(result["result"]))
         out.update(code=code, ok=ok, subtype=subtype, cost_usd=cost or 0.0, turns=turns,
                    result=str((result or {}).get("result") or ""), denials=denials, session=sid, limit=hit,
-                   output=output, duration_s=duration, reason=subtype)
+                   output=output, ledger_id=row, duration_s=duration, reason=subtype)
         if hit is not None:
             out["reason"] = f"usage limit: {hit.evidence}"
             return out
@@ -189,6 +194,12 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
     _log(log_file, f"=== FAILED: still failing after {max_attempts} attempts ===")
     out["code"] = out["code"] or 1
     return out
+
+
+def reject(run: Mapping[str, Any], why: str) -> None:
+    """The caller refuses the output of a `run_agent` result that succeeded: its spend counts as wasted.
+    Never raises."""
+    ledger.reject_job(run.get("ledger_id"), why)
 
 
 def stamp(prompt: str) -> str:
