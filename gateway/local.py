@@ -117,6 +117,22 @@ def _json_object(text: str) -> dict:
     return answer
 
 
+def _validate(answer: dict, schema: Mapping[str, Any]) -> dict:
+    """Without `format` nothing constrains the reply: require the keys and map enum values (trimmed,
+    case-insensitive) to their label. Raises, so the caller falls back to Haiku."""
+    for key in schema.get("required", ()):
+        if key not in answer:
+            raise ValueError(f"answer lacks {key!r}")
+    for key, prop in (schema.get("properties") or {}).items():
+        options = prop.get("enum")
+        if options and key in answer:
+            match = next((o for o in options if str(o).lower() == str(answer[key]).strip().lower()), None)
+            if match is None:
+                raise ValueError(f"{key}={answer[key]!r} is not one of {options}")
+            answer[key] = match
+    return answer
+
+
 def _chat(section: Mapping[str, Any], body: dict, schema: dict) -> dict:
     """POST /api/chat. Some models reject `think` (400) or a `format` schema (501, qwen3.5 on Ollama 0.40.7):
     drop what is rejected and ask for the JSON in the prompt instead."""
@@ -129,7 +145,8 @@ def _chat(section: Mapping[str, Any], body: dict, schema: dict) -> dict:
             attempt["messages"] = [msg]
         try:
             return _post(url, attempt, timeout)
-        except urllib.error.HTTPError:
+        except urllib.error.HTTPError as exc:
+            log.info("local: %s rejected %s (HTTP %s), retrying without it", section["model"], drop or "nothing", exc.code)
             continue
     raise RuntimeError("every request variant was rejected")
 
@@ -150,7 +167,7 @@ def judge_sync(surface: str, prompt: str, schema: dict, cfg: Mapping[str, Any] |
     started = time.time()
     try:
         doc = _chat(section, body, schema)
-        answer = _json_object(doc["message"]["content"])
+        answer = _validate(_json_object(doc["message"]["content"]), schema)
     except Exception as exc:  # noqa: BLE001 - any failure means "ask Haiku as before"
         ledger.record_call(f"local:{surface}", False, time.time() - started, 0.0, section["model"],
                            f"failed: {exc}"[:300], scope)

@@ -89,6 +89,32 @@ def test_local_shadow():
     assert store.DB_PATH == TMP / "gateway" / "state" / "gateway.db"
 
 
+def test_local_format_501_fallback():
+    import urllib.error
+    schema = {"type": "object", "properties": {"label": {"enum": ["CRITICAL", "NORMAL"]}}, "required": ["label"]}
+    cfg = {"local": {"enabled": True, "model": "qwen3.5:4b"}, "surfaces": {"s": "local"}}
+    sent, reply = [], {}
+
+    def post(url, body, timeout_s):
+        sent.append(body)
+        if "format" in body:
+            raise urllib.error.HTTPError(url, 501, "structured output is unavailable", None, None)
+        return {"message": {"content": reply["text"]}}
+
+    post0, pressure0 = local._post, local.pressure_reason
+    local._post, local.pressure_reason = post, lambda *_: None
+    try:
+        reply["text"] = ' {"label": "critical"}\n'
+        assert local.judge_sync("s", "p", schema, cfg) == {"label": "CRITICAL"}
+        assert "format" in sent[0] and "format" not in sent[1] and "JSON schema" in sent[1]["messages"][0]["content"]
+        for bad in ('{"label": "maybe"}', "{}", "CRITICAL"):  # off-enum, missing key, not JSON: Haiku answers instead
+            reply["text"] = bad
+            assert local.judge_sync("s", "p", schema, cfg) is None, bad
+        assert rows("SELECT ok FROM provider_calls WHERE surface = 'local:s' ORDER BY id DESC LIMIT 1") == [(0,)]
+    finally:
+        local._post, local.pressure_reason = post0, pressure0
+
+
 def test_run_agent():
     log = TMP / "job.log"
     done = json.dumps({"type": "result", "subtype": "success", "total_cost_usd": 0.4, "num_turns": 3,
@@ -180,6 +206,7 @@ if __name__ == "__main__":
     test_job_session_strict_mcp()
     test_routing_and_parse()
     test_local_shadow()
+    test_local_format_501_fallback()
     test_run_agent()
     test_proc_timeout_kills()
     test_service_and_cli()
