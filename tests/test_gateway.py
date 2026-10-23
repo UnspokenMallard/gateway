@@ -211,44 +211,27 @@ def test_service_and_cli():
 
 
 def test_auth_modes():
-    claude.SECRETS_ENV = TMP / "secrets-env"
     set_env = {"ANTHROPIC_API_KEY": "sk-ambient", "ANTHROPIC_AUTH_TOKEN": "tok", "PATH": "/bin"}
-    assert "ANTHROPIC_API_KEY" not in claude.env_for("work", set_env, "login")  # login: the subscription, whatever is ambient
-    assert claude.env_for("work", set_env)["ANTHROPIC_API_KEY"] == "sk-ambient"  # auth=None: unchanged
-    assert gateway.api_key("work") is None and "ANTHROPIC_API_KEY_WORK" in claude.auth_problem("work", "api-key")
-    assert claude.auth_problem("work", "login") is None and "unknown auth mode" in claude.auth_problem("work", "oauth")
-    claude.SECRETS_ENV.write_text('# keys\nANTHROPIC_API_KEY_PERSONAL="sk-p"\nexport ANTHROPIC_API_KEY_WORK=sk-w\nOTHER=x\n')
-    assert gateway.api_key("personal") == "sk-p" and gateway.api_key("work") == "sk-w"
-    env = claude.env_for("work", set_env, "api-key")
-    assert env["ANTHROPIC_API_KEY"] == "sk-w" and "ANTHROPIC_AUTH_TOKEN" not in env
+    env = claude.env_for("work", set_env, "login")  # login: the subscription, whatever is ambient
+    assert "ANTHROPIC_API_KEY" not in env and "ANTHROPIC_AUTH_TOKEN" not in env
     assert env["CLAUDE_CONFIG_DIR"].endswith(".claude-work")
+    assert claude.env_for("work", set_env)["ANTHROPIC_API_KEY"] == "sk-ambient"  # auth=None: unchanged
+    assert claude.auth_problem("work", "login") is None and "unknown auth mode" in claude.auth_problem("work", "api-key")
     done = json.dumps({"type": "result", "subtype": "success", "total_cost_usd": 0.1, "num_turns": 1, "result": "ok"})
     saved, proc_run = agent.RUN, claude.proc.run
     try:
         agent.RUN = fake_run(done)
         n = len(RAN)
-        out = gateway.run_agent("proposer", "p", "Read", None, 1.0, scope="personal", auth="api-key", max_attempts=1)
-        assert out["ok"] and RAN[-1]["env"]["ANTHROPIC_API_KEY"] == "sk-p"
-        assert rows("SELECT detail, scope FROM job_calls ORDER BY id DESC LIMIT 1") == \
-            [("auth=api-key success turns=1 attempt=1", "personal")]
-        # a rate-limit text on an api-key run is not the subscription window
-        agent.RUN = fake_run("API Error: 429 Too Many Requests", code=1)
-        gateway.run_agent("proposer", "p", "Read", None, 1.0, auth="api-key", max_attempts=1)
-        assert not limits.blocked("claude")[0]
-        claude.SECRETS_ENV.write_text("ANTHROPIC_API_KEY_PERSONAL=sk-p\n")
-        n = len(RAN)
+        out = gateway.run_agent("proposer", "p", "Read", None, 1.0, scope="personal", auth="login", max_attempts=1)
+        assert out["ok"] and "ANTHROPIC_API_KEY" not in RAN[-1]["env"]
         out = gateway.run_agent("proposer", "p", "Read", None, 1.0, scope="work", auth="api-key")
-        assert out["subtype"] == "not-started" and "ANTHROPIC_API_KEY_WORK" in out["reason"] and len(RAN) == n  # refused before any call
-        assert "sk-" not in out["reason"]
+        assert out["subtype"] == "not-started" and "unknown auth mode" in out["reason"] and len(RAN) == n + 1  # refused before any call
         claude.proc.run = fake_run(json.dumps({"type": "result", "subtype": "success", "result": "hi", "total_cost_usd": 0.01}))
-        out = gateway.ask("hud-task-classify", "q", scope="personal", auth="api-key")
-        assert out["ok"] and RAN[-1]["env"]["ANTHROPIC_API_KEY"] == "sk-p"
-        assert gateway.ask("hud-task-classify", "q", scope="work", auth="api-key")["ok"] is False
         out = gateway.ask("hud-task-classify", "q", scope="work", auth="login")
         assert out["ok"] and "ANTHROPIC_API_KEY" not in RAN[-1]["env"]
+        assert gateway.ask("hud-task-classify", "q", scope="work", auth="api-key")["ok"] is False
     finally:
         agent.RUN, claude.proc.run = saved, proc_run
-        claude.SECRETS_ENV = Path.home() / ".jarvis" / "secrets" / "env"
 
 
 def test_job_session_strict_mcp():

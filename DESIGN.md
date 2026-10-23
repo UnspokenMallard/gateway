@@ -54,10 +54,8 @@ Both pick the account (`personal` or `work`, the Claude config dir and its envir
 caller's scope; the scope rules (`daemon/scope.py`: which repo is work) stay in Jarvis and are passed in.
 
 Both also take `auth` (2026-10-23): `None` (the environment as it is), `login` (the subscription: `ANTHROPIC_API_KEY`
-and `ANTHROPIC_AUTH_TOKEN` are stripped, since `claude -p` prefers an API key over OAuth) or `api-key`
-(`ANTHROPIC_API_KEY_<SCOPE>` from `~/.jarvis/secrets/env`, a missing key refuses the call before any spend). An
-api-key call skips Budget's subscription limit window and carries `auth=api-key` in the ledger detail; the job gate
-and the caller's purse apply to both modes. Used by Mind's Proposer.
+and `ANTHROPIC_AUTH_TOKEN` are stripped, since `claude -p` prefers an API key over OAuth). There is no API-key mode
+(removed 2026-10-23): Gateway never reads a Console key. Used by Mind's Proposer.
 
 ## What moves here
 

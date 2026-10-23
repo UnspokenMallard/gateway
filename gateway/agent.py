@@ -116,7 +116,7 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
     (1 when the gate refused or the cap stopped it). The caller still asserts its artifact.
     `flags` are extra CLI flags (the implementer's `--safe-mode --restricted`); `deny=False`
     drops the shared deny list for a caller whose allow rules are already a closed set.
-    `auth` is `login`, `api-key` or None (see claude.py); an api-key run skips Budget's subscription limit window.
+    `auth` is `login` or None (see claude.py).
     A job named in `[shadow.jobs]` also gets a read-only Haiku shadow run after a successful live run
     (`_shadow`); `shadow=False` is how that run avoids shadowing itself.
     """
@@ -139,7 +139,6 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
         out["reason"] = problem
         _log(log_file, f"=== FAILED: not starting {job} - {problem} ===")
         return out
-    keyed = auth == "api-key"
     for attempt in range(1, max_attempts + 1):
         if attempt > 1:
             _log(log_file, f"--- retry {attempt}/{max_attempts} after {backoff_s}s ---")
@@ -164,12 +163,12 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
         turns = result.get("num_turns") if result else None
         denials = [d.get("tool_name", "?") for d in (result or {}).get("permission_denials") or []]
         ok = code == 0 and subtype == "success" and not (result or {}).get("is_error")
-        hit = limits.detect(output, claude.provider_of(scope)) if not ok and not keyed else None
+        hit = limits.detect(output, claude.provider_of(scope)) if not ok else None
         if hit is not None:
             limits.record(hit)
-        elif ok and not keyed:
+        elif ok:
             limits.note_success(claude.provider_of(scope))
-        detail = f"{note + ' ' if note else ''}{'auth=api-key ' if keyed else ''}{subtype} turns={turns if turns is not None else '?'} attempt={attempt}"
+        detail = f"{note + ' ' if note else ''}{subtype} turns={turns if turns is not None else '?'} attempt={attempt}"
         if denials:
             detail += f" denials={len(denials)}[{','.join(denials)}]"
         row = None
