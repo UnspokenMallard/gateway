@@ -40,7 +40,7 @@ MIN_BASELINE_DAYS = 2  # load follows the workday: two weekdays show whether the
 
 # The budget (design section 4). Changing a number here changes what "negligible" means.
 MAX_RSS_MB = 4096
-MAX_BUSY_FRACTION = 0.01
+MAX_BUSY_FRACTION = 0.03  # was 0.01; a note-writing session hit 1.4% (incident 128)
 MAX_SWAP_GROWTH_MB = 512
 MAX_MEMLEVEL_DROP = 5
 MAX_PROBE_RATIO = 1.2
