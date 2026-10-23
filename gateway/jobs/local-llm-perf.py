@@ -152,6 +152,9 @@ def busy_fractions(since: float) -> list[float]:
         return []
     per_hour: dict[int, float] = {}
     for ts, dur in rows:
+        at = datetime.fromtimestamp(ts).astimezone()
+        if at.weekday() >= 5 or at.hour not in WORK_HOURS:  # budget is per working hour (design section 4)
+            continue
         per_hour[int(ts // 3600)] = per_hour.get(int(ts // 3600), 0.0) + (dur or 0.0)
     return [s / 3600 for s in per_hour.values()]
 
