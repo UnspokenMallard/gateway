@@ -235,8 +235,9 @@ def reject(run: Mapping[str, Any], why: str) -> None:
     ledger.reject_job(run.get("ledger_id"), why)
 
 
-def stamp(prompt: str) -> str:
-    """The two lines every nightly job prompt ends with (jobcommon added them before 2026-10-17)."""
-    return (prompt + f"\n\nCurrent local time: {datetime.now().astimezone().isoformat(timespec='seconds')}. "
+def stamp(prompt: str, persona: str = "Bifrost: a neutral conduit between Jarvis and the models") -> str:
+    """The one line every job prompt opens with (its persona, 2026-10-23) and the two it ends with
+    (jobcommon added those before 2026-10-17). The persona colours tone only; facts and severity stay exact."""
+    return (f"You speak as {persona}. Tone only: keep facts, numbers and severity exact.\n\n" + prompt + f"\n\nCurrent local time: {datetime.now().astimezone().isoformat(timespec='seconds')}. "
             "Use it for any timestamp you write - there is no shell to ask."
             "\nIf a tool result is too large and is saved to a file for you instead, Read that file - it is within your limits.")
