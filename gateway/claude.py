@@ -21,6 +21,13 @@ Flags, each of them load-bearing:
 Usage limits: a failed call's output is checked against Budget's limit patterns; a hit is recorded
 in Budget's window here and returned as `limit`, and the caller raises the alert (Gateway never
 alerts). A call that got through proves the window reopened (`limits.note_success`).
+
+Auth (2026-10-23): `auth=None` leaves the environment as it is. `"login"` is the account's subscription:
+`ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` are stripped, because `claude -p` uses an API key over
+the OAuth login whenever one is set. `"api-key"` sets `ANTHROPIC_API_KEY` from
+`ANTHROPIC_API_KEY_<SCOPE>` in `~/.jarvis/secrets/env` (kept out of git, never logged); a missing key
+is a refused call before any spend. An api-key call bills per token outside the subscription, so it
+never touches Budget's subscription limit window; the job gate and the caller's purse still apply.
 """
 from __future__ import annotations
 
@@ -43,6 +50,8 @@ CONFIG_DIRS = {"personal": HOME / ".claude-personal", "work": HOME / ".claude-wo
 # Quota provider per account; personal keeps the historical name for Budget's limit files.
 PROVIDERS = {"personal": "claude", "work": "claude-work"}
 SCOPES = tuple(CONFIG_DIRS)
+AUTH_MODES = ("login", "api-key")
+SECRETS_ENV = HOME / ".jarvis" / "secrets" / "env"
 
 READONLY_TOOLS = ["Read", "Grep", "Glob"]
 ALWAYS_DENIED = ["Bash", "Write", "Edit", "NotebookEdit", "WebFetch", "WebSearch"]
@@ -57,10 +66,44 @@ def exe() -> str | None:
     return None
 
 
-def env_for(scope: str, base: Mapping[str, str] | None = None) -> dict[str, str]:
-    """The process environment with CLAUDE_CONFIG_DIR set for the account."""
+def key_var(scope: str) -> str:
+    return f"ANTHROPIC_API_KEY_{scope.upper()}"
+
+
+def api_key(scope: str) -> str | None:
+    """The account's Console API key from the dotenv-style secrets file; None when the file or the
+    variable is missing or empty. Only the named variable is read."""
+    want = key_var(scope)
+    try:
+        lines = SECRETS_ENV.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    for line in lines:
+        name, sep, value = line.strip().removeprefix("export ").partition("=")
+        if sep and name.strip() == want:
+            return value.strip().strip("\"'") or None
+    return None
+
+
+def auth_problem(scope: str, auth: str | None) -> str | None:
+    """Why a call with this auth mode must not start, or None."""
+    if auth is not None and auth not in AUTH_MODES:
+        return f"unknown auth mode {auth!r}: use login or api-key"
+    if auth == "api-key" and api_key(scope) is None:
+        return f"no API key for the {scope} account: add {key_var(scope)} to {SECRETS_ENV}"
+    return None
+
+
+def env_for(scope: str, base: Mapping[str, str] | None = None, auth: str | None = None) -> dict[str, str]:
+    """The process environment with CLAUDE_CONFIG_DIR set for the account, and the auth mode applied."""
     env = dict(os.environ if base is None else base)
     env["CLAUDE_CONFIG_DIR"] = str(CONFIG_DIRS[scope])
+    if auth is not None:
+        env.pop("ANTHROPIC_AUTH_TOKEN", None)
+        env.pop("ANTHROPIC_API_KEY", None)
+        key = api_key(scope) if auth == "api-key" else None
+        if key:
+            env["ANTHROPIC_API_KEY"] = key
     return env
 
 
@@ -131,7 +174,7 @@ def _record(surface: str, job: str | None, ok: bool, duration: float, cost: floa
 def call(surface: str, prompt: str, *, scope: str = "personal", model: str | None = None,
          budget_usd: float | None = None, timeout_s: float = 300, cwd: str | None = None,
          tools: list[str] | None = None, isolated: bool = True, bare: bool = False, system: str | None = None,
-         system_file: str | None = None, job: str | None = None,
+         system_file: str | None = None, job: str | None = None, auth: str | None = None,
          cfg: Mapping[str, Any] | None = None) -> dict:
     """Run one Claude call for `surface` and report what happened. Never raises.
 
@@ -146,34 +189,38 @@ def call(surface: str, prompt: str, *, scope: str = "personal", model: str | Non
             "code": None, "output": ""}
     if not model:
         return {**base, "reason": f"surface {surface!r} is not a Claude surface in ~/.gateway/config.toml"}
+    if (problem := auth_problem(scope, auth)) is not None:
+        return {**base, "reason": problem}
     exe_path = exe()
     if exe_path is None:
         return {**base, "reason": "claude CLI not found"}
+    keyed = auth == "api-key"
+    tag = "auth=api-key " if keyed else ""
     cmd = command(exe_path, model, budget_usd, allowed_tools=tools, isolated=isolated, bare=bare, system=system,
                   system_file=system_file)
     started = time.time()
     try:
         code, output = proc.run(cmd, timeout_s=timeout_s, cwd=cwd or str(store.STATE), input_text=prompt,
-                                env=env_for(scope))
+                                env=env_for(scope, auth=auth))
     except OSError as exc:
         code, output = 127, f"could not start claude: {exc}"
     duration = time.time() - started
     base.update(code=code, output=output, duration_s=round(duration, 3))
 
     if code != 0:
-        hit = limits.detect(output, provider_of(scope))
+        hit = None if keyed else limits.detect(output, provider_of(scope))
         if hit is not None:
             limits.record(hit)
             _record(surface, job, False, duration, 0.0, model, f"usage limit: {hit.evidence}", scope)
             return {**base, "limit": hit, "reason": f"usage limit: {hit.evidence}"}
-        detail = f"claude exit={code}: {output[-400:]}"
+        detail = f"{tag}claude exit={code}: {output[-400:]}"
         _record(surface, job, False, duration, 0.0, model, detail, scope)
         return {**base, "reason": detail}
 
     try:
         parsed, _ = json.JSONDecoder().raw_decode(output, output.index("{"))
     except ValueError as exc:
-        detail = f"unparseable CLI output ({exc}): {output[:300]}"
+        detail = f"{tag}unparseable CLI output ({exc}): {output[:300]}"
         _record(surface, job, False, duration, 0.0, model, detail, scope)
         return {**base, "reason": detail}
 
@@ -182,8 +229,9 @@ def call(surface: str, prompt: str, *, scope: str = "personal", model: str | Non
     stop = str(parsed.get("stop_reason") or "")
     ok = not parsed.get("is_error")
     reason = f"stop_reason={stop}" if ok else f"{parsed.get('subtype')}: {text[:200]}"
-    _record(surface, job, ok, duration, cost, model, f"stop_reason={stop} {text[:200]}" if ok else reason, scope)
-    limits.note_success(provider_of(scope))
+    _record(surface, job, ok, duration, cost, model, tag + (f"stop_reason={stop} {text[:200]}" if ok else reason), scope)
+    if not keyed:
+        limits.note_success(provider_of(scope))
     return {**base, "ok": ok, "text": text, "cost_usd": cost, "reason": reason}
 
 
@@ -205,7 +253,7 @@ def parse_json(text: str) -> Any:
 
 def ask(surface: str, prompt: str, schema: dict | None = None, scope: str = "personal", *,
         system: str | None = None, system_file: str | None = None, budget_usd: float | None = None,
-        timeout_s: float = 300, job: str | None = None, model: str | None = None,
+        timeout_s: float = 300, job: str | None = None, model: str | None = None, auth: str | None = None,
         cfg: Mapping[str, Any] | None = None) -> dict | None:
     """A small judgment: no tools, no session files. Never raises.
 
@@ -228,7 +276,7 @@ def ask(surface: str, prompt: str, schema: dict | None = None, scope: str = "per
                 "duration_s": round(time.time() - started, 3), "model": local._cfg(cfg)["model"], "limit": None,
                 "reason": "local"}
     out = call(surface, prompt, scope=scope, model=model, budget_usd=budget_usd, timeout_s=timeout_s, bare=True,
-               system=system, system_file=system_file, job=job, cfg=cfg)
+               system=system, system_file=system_file, job=job, auth=auth, cfg=cfg)
     out["answer"] = (parse_json(out["text"]) if schema is not None else out["text"]) if out["ok"] else None
     return out
 

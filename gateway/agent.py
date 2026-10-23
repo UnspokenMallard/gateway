@@ -106,7 +106,7 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
               scope: str = "personal", cwd: Path | str | None = None, optional: bool = False,
               log_file: Path | None = None, surface: str | None = None, flags: list[str] | None = None,
               session: str | None = None, max_attempts: int = 3, backoff_s: int = 120,
-              timeout_s: float | None = None, deny: bool = True, note: str = "",
+              timeout_s: float | None = None, deny: bool = True, note: str = "", auth: str | None = None,
               cfg: Mapping[str, Any] | None = None, shadow: bool = True) -> dict:
     """One job session under its declared limits. Never raises.
 
@@ -116,6 +116,7 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
     (1 when the gate refused or the cap stopped it). The caller still asserts its artifact.
     `flags` are extra CLI flags (the implementer's `--safe-mode --restricted`); `deny=False`
     drops the shared deny list for a caller whose allow rules are already a closed set.
+    `auth` is `login`, `api-key` or None (see claude.py); an api-key run skips Budget's subscription limit window.
     A job named in `[shadow.jobs]` also gets a read-only Haiku shadow run after a successful live run
     (`_shadow`); `shadow=False` is how that run avoids shadowing itself.
     """
@@ -134,6 +135,11 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
         _log(log_file, f"=== FAILED: not starting {job} - claude CLI not found ===")
         return out
     scope = scope if scope in claude.CONFIG_DIRS else "personal"
+    if (problem := claude.auth_problem(scope, auth)) is not None:
+        out["reason"] = problem
+        _log(log_file, f"=== FAILED: not starting {job} - {problem} ===")
+        return out
+    keyed = auth == "api-key"
     for attempt in range(1, max_attempts + 1):
         if attempt > 1:
             _log(log_file, f"--- retry {attempt}/{max_attempts} after {backoff_s}s ---")
@@ -148,7 +154,7 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
         started = time.time()
         try:
             code, output = RUN(args, timeout_s=timeout_s, cwd=str(cwd or HOME / ".jarvis"), input_text=prompt,
-                                    env=claude.env_for(scope), sink=log_file)
+                                    env=claude.env_for(scope, auth=auth), sink=log_file)
         except OSError as exc:
             code, output = 127, f"could not start claude: {exc}"
         duration = round(time.time() - started, 1)
@@ -158,12 +164,12 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
         turns = result.get("num_turns") if result else None
         denials = [d.get("tool_name", "?") for d in (result or {}).get("permission_denials") or []]
         ok = code == 0 and subtype == "success" and not (result or {}).get("is_error")
-        hit = limits.detect(output, claude.provider_of(scope)) if not ok else None
+        hit = limits.detect(output, claude.provider_of(scope)) if not ok and not keyed else None
         if hit is not None:
             limits.record(hit)
-        elif ok:
+        elif ok and not keyed:
             limits.note_success(claude.provider_of(scope))
-        detail = f"{note + ' ' if note else ''}{subtype} turns={turns if turns is not None else '?'} attempt={attempt}"
+        detail = f"{note + ' ' if note else ''}{'auth=api-key ' if keyed else ''}{subtype} turns={turns if turns is not None else '?'} attempt={attempt}"
         if denials:
             detail += f" denials={len(denials)}[{','.join(denials)}]"
         row = None
@@ -192,7 +198,7 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
         transient = any(t in output for t in TRANSIENT)
         if code == 0 and not transient:
             if ok and shadow:
-                _shadow(job, prompt, out, scope, cwd, allow, budget_usd, log_file, cfg)
+                _shadow(job, prompt, out, scope, cwd, allow, budget_usd, log_file, cfg, auth)
             return out
         if not transient:
             return out
@@ -207,7 +213,7 @@ READ_RULES = ("Read", "Grep", "Glob")
 
 
 def _shadow(job: str, prompt: str, live: dict, scope: str, cwd: Path | str | None, allow: list[str] | None,
-            budget_usd: float, log_file: Path | None, cfg: Mapping[str, Any]) -> None:
+            budget_usd: float, log_file: Path | None, cfg: Mapping[str, Any], auth: str | None = None) -> None:
     """Haiku answers the prompt of a live job next to the live model (T6, 2026-10-22). `[shadow.jobs]` names
     the jobs and `[shadow] until` (YYYY-MM-DD) ends it. The shadow run is read-only (no Write, no Bash, only
     the Read/Grep/Glob allow rules), billed in Budget as `<job>-shadow`, and its answer is never used:
@@ -220,7 +226,7 @@ def _shadow(job: str, prompt: str, live: dict, scope: str, cwd: Path | str | Non
         read_only = [a for a in allow or [] if a.startswith(READ_RULES)]
         sh = run_agent(f"{job}-shadow", prompt, ",".join(READ_RULES), read_only, min(budget_usd, 0.5), scope=scope,
                        cwd=cwd, optional=True, log_file=log_file, surface=SHADOW_SURFACE, max_attempts=1,
-                       timeout_s=600, note="shadow", cfg=cfg, shadow=False)
+                       timeout_s=600, note="shadow", auth=auth, cfg=cfg, shadow=False)
         ratio = difflib.SequenceMatcher(None, live["result"][:4000], sh["result"][:4000]).quick_ratio()
         local.record_shadow(f"job:{job}", sh["result"][:3000], live["result"][:3000], sh["ok"] and ratio >= 0.5,
                             f"{sh['model']} ${sh['cost_usd']:.3f} {sh['turns']}t sim={ratio:.2f} vs {live['model']} "
