@@ -1,9 +1,9 @@
-"""A tool-using `claude -p` session (was Jarvis's `jobcommon.run_claude_job`, and Forge's implementer call).
+"""A tool-using `claude -p` session (was Jarvis's `jobcommon.run_claude_job`, and Brokkr's implementer call).
 
 dontAsk permissions, the explicit tool list and allow rules, the shared deny list (secrets,
-credentials, transcripts), the per-run cap, Budget's job-budget gate before every attempt
+credentials, transcripts), the per-run cap, Fafnir's job-budget gate before every attempt
 (optional jobs stop at 80% of the week or at the daily cap), retries only on transient network
-errors, and every attempt recorded in Budget's `job_calls`. The model is the surface's
+errors, and every attempt recorded in Fafnir's `job_calls`. The model is the surface's
 (`job:<job>` in `[surfaces]`, or `surface=` when several jobs share one). Jarvis keeps the job
 lock, the logs and the artifact checks.
 """
@@ -32,7 +32,7 @@ def rule_path(path: Path | str) -> str:
 
 DENY_TOOLS = [
     f"Read({rule_path(HOME / '.jarvis' / 'secrets')}/**)",
-    f"Read({rule_path(HOME / '.herald' / 'secrets')}/**)",  # channel credentials, in Herald since 2026-10-17
+    f"Read({rule_path(HOME / '.herald' / 'secrets')}/**)",  # channel credentials, in Hermod since 2026-10-17
     f"Read({rule_path(HOME / '.claude-personal' / '.credentials.json')})",
     f"Read({rule_path(HOME / '.claude-work' / '.credentials.json')})",
     f"Read({rule_path(HOME / '.claude' / '.credentials.json')})",
@@ -91,7 +91,7 @@ def _result(output: str) -> dict | None:
 
 
 def gate(scope: str, optional: bool = False) -> tuple[bool, str]:
-    """Budget's job-budget gate: (go ahead, why)."""
+    """Fafnir's job-budget gate: (go ahead, why)."""
     try:
         b = ledger.job_budget(scope=scope)
     except Exception as exc:  # noqa: BLE001 - refuse rather than spend unmetered
@@ -111,7 +111,7 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
 
     `{"code", "ok", "subtype", "cost_usd", "turns", "result", "denials", "session", "limit",
     "output", "duration_s", "model", "reason", "ledger_id"}` for the last attempt (`denials` is the list of
-    denied tool names, `ledger_id` the Budget row to hand to `reject`); `code` is the exit code
+    denied tool names, `ledger_id` the Fafnir row to hand to `reject`); `code` is the exit code
     (1 when the gate refused or the cap stopped it). The caller still asserts its artifact.
     `flags` are extra CLI flags (the implementer's `--safe-mode --restricted`); `deny=False`
     drops the shared deny list for a caller whose allow rules are already a closed set.
@@ -175,7 +175,7 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
             row = ledger.record_job(job, ok, duration, cost, model, detail, scope=scope,
                                     reason="" if ok else subtype, attempt=attempt)
         except Exception as exc:  # noqa: BLE001
-            _log(log_file, f"(could not record the job call in Budget: {exc})")
+            _log(log_file, f"(could not record the job call in Fafnir: {exc})")
         cost_s = f"{cost:.4f}".rstrip("0").rstrip(".") if cost is not None else "-"
         _log(log_file, f"--- claude[{scope}] {model}: {subtype}, ${cost_s} list price, "
                        f"{turns if turns is not None else '?'} turn(s), {duration}s, session {sid} ---")

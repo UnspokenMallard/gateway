@@ -1,22 +1,22 @@
-# Gateway (DESIGN.md): which model answers each surface. A caller names its surface, never a model.
+# Bifrost (DESIGN.md): which model answers each surface. A caller names its surface, never a model.
 # Read at call time: a change here takes effect on the next call, no restart.
 
 [surfaces]
-# Claude surfaces: "claude:<model>". Each keeps the model it had before Gateway (2026-10-17).
+# Claude surfaces: "claude:<model>". Each keeps the model it had before Bifrost (2026-10-17).
 # Jarvis's brain (its caps, breaker and brain_calls stay in Jarvis):
 "escalation" = "claude:sonnet"             # brain.answer_escalation, Read/Grep/Glob in the repo
 "inbound-task-triage" = "claude:haiku"     # Asana task: CRITICAL or NORMAL
 "inbound-message-triage" = "claude:haiku"  # mail/chat batch verdict
 "inbound-draft" = "claude:sonnet"          # a reply draft for a batch that needs one
 "report-narrate" = "claude:haiku"          # the spoken line of a pushed report
-"originate" = "claude:sonnet"              # Forge's proposer; must equal forge.proposer.MODEL (G15 hash)
-# Forge:
+"originate" = "claude:sonnet"              # Brokkr's proposer; must equal brokkr.proposer.MODEL (G15 hash)
+# Brokkr:
 "criteria-score" = "claude:haiku"          # delegated work's acceptance criteria against its diff
 # The HUD (POST /ask):
 "hud-whereami" = "claude:haiku"
 "hud-commit-message" = "claude:haiku"
 "hud-task-classify" = "claude:haiku"
-# Mind:
+# Mimir:
 "mind-session-history" = "claude:haiku"
 "mind-memory-capture" = "claude:haiku"
 "mind-vault-capture" = "claude:haiku"
@@ -35,6 +35,6 @@
 "job:issue-triage" = "claude:sonnet"
 "job:checkups" = "claude:sonnet"
 "job:remediate" = "claude:sonnet"          # Jarvis incident remediation (2026-10-18)
-"job:proposer" = "claude:sonnet"           # Mind's nightly Proposer edit agent (2026-10-21)
-"job:implementer" = "claude:sonnet"        # Forge's implementer (was [implementer] model in Jarvis's config)
+"job:proposer" = "claude:sonnet"           # Mimir's nightly Proposer edit agent (2026-10-21)
+"job:implementer" = "claude:sonnet"        # Brokkr's implementer (was [implementer] model in Jarvis's config)
 

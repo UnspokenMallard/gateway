@@ -29,17 +29,17 @@ done-criteria of each item are in `~/.jarvis/AUDIT-2026-10-21.md`; the phases an
 are in `~/.jarvis/NEXT-PROMPT.md`. Build an item only after Anze approves its phase. Prompt A below
 covers these rows too. The rule stays: this component measures or knows; Jarvis alerts and acts.
 
-- **A05 (Phase 0, do first)** `gateway/agent.py` `command()` still does not pass
+- **A05 (Phase 0, do first)** `bifrost/agent.py` `command()` still does not pass
   `--strict-mcp-config` (checked 2026-10-21). Jarvis's own jobs add it through
   `jobcommon.MCP_OFF` and Analyst's through `JOB_FLAGS`, but Mind's `agentjob.run_claude_job`
   passes no flags, so nightly-reflection loads every claude.ai connector and thrashes on
   autocompact. Add the flag in `command()` for job sessions. Done: nightly-reflection's log no
   longer warns about claude.ai MCP servers, and a run's first turn is under 30k tokens.
-  (Check first: `tests/test_gateway.py` `test_job_session_strict_mcp` asserts the flag and passes 2026-10-24.)
+  (Check first: `tests/test_bifrost.py` `test_job_session_strict_mcp` asserts the flag and passes 2026-10-24.)
 - **A30 (Phase 3)** hud-audit-nightly hits `error_max_budget_usd` in 23 of 71 runs ($24.88 of its
   $46.41 in 14 days). The cap is set by the caller; Gateway should report cap-hits per surface so the
   caller can be fixed, and a capped run should keep its partial output.
-- **A42 (Phase 4)** `~/.analyst/analyst/common.py` and `~/.mind/mind/agentjob.py` keep their own
+- **A42 (Phase 4)** `~/.analyst/odin/common.py` and `~/.mind/mimir/agentjob.py` keep their own
   copies of `run_claude_job`; fold them into Gateway's client.
 
 | When (earliest useful, not a deadline) | Step | Waits on |
@@ -52,7 +52,7 @@ covers these rows too. The rule stays: this component measures or knows; Jarvis 
 > Read `~/.gateway/DESIGN.md` ("As built") and this file, then do the first row of the table above whose date has come and
 > that is not done. Gateway never alerts, pings or files; brain keeps its caps and breaker; brain's isolated argv must stay
 > byte-identical (G15). A model change is a `[surfaces]` edit, never a caller edit. Tests:
-> `~/.gateway/.venv/bin/python ~/.gateway/tests/test_gateway.py` and Jarvis's selftest. Stop and tell me if anything differs
+> `~/.gateway/.venv/bin/python ~/.gateway/tests/test_bifrost.py` and Jarvis's selftest. Stop and tell me if anything differs
 > from what the design expects.
 
 ## B: status only

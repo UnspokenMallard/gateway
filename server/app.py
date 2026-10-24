@@ -1,9 +1,9 @@
-"""Gateway's HTTP service on 127.0.0.1:3027 (launchd com.gateway.server), for callers that are not
-Python on this Mac: the HUD asks its judgments here. Python callers import the `gateway` library
+"""Bifrost's HTTP service on 127.0.0.1:3027 (launchd com.gateway.server), for callers that are not
+Python on this Mac: the HUD asks its judgments here. Python callers import the `bifrost` library
 directly (same code, same config, same ledger).
 
 Localhost only: the host check refuses DNS rebinding, and a write carrying an Origin header (any
-browser page) is refused, so no web page can spend through Anze's browser. Gateway makes the call
+browser page) is refused, so no web page can spend through Anze's browser. Bifrost makes the call
 and reports what happened; it never alerts.
 """
 from __future__ import annotations
@@ -14,8 +14,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from gateway import ask, store, surfaces  # noqa: E402
-from gateway.claude import SCOPES, exe  # noqa: E402
+from bifrost import ask, store, surfaces  # noqa: E402
+from bifrost.claude import SCOPES, exe  # noqa: E402
 from starlette.applications import Starlette  # noqa: E402
 from starlette.middleware import Middleware  # noqa: E402
 from starlette.middleware.trustedhost import TrustedHostMiddleware  # noqa: E402

@@ -1,8 +1,8 @@
-"""Gateway's store: state/gateway.db (WAL), state files, config.toml.
+"""Bifrost's store: state/gateway.db (WAL), state files, config.toml.
 
 Paths are module attributes read at call time, so a test points them at a scratch directory
-(`store.ROOT`, `store.STATE`, `store.DB_PATH`, `store.CONFIG`), as Budget's store does.
-Stdlib only: imported by Jarvis's venv, Mind's, Forge's and Gateway's own.
+(`store.ROOT`, `store.STATE`, `store.DB_PATH`, `store.CONFIG`), as Fafnir's store does.
+Stdlib only: imported by Jarvis's venv, Mimir's, Brokkr's and Bifrost's own.
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import sqlite3
 import tomllib
 from pathlib import Path
 
-ROOT = Path(os.environ.get("GATEWAY_HOME", Path.home() / ".gateway"))
+ROOT = Path(os.environ.get("BIFROST_HOME", Path.home() / ".gateway"))
 STATE = ROOT / "state"
 DB_PATH = STATE / "gateway.db"
 CONFIG = ROOT / "config.toml"

@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Install (or reinstall) Gateway's launchd agents from ~/.gateway/launchd. `install-launchd status` shows them.
+# Install (or reinstall) Bifrost's launchd agents from ~/.gateway/launchd. `install-launchd status` shows them.
 set -eu
 DIR=$HOME/.gateway/launchd
 AGENTS=$HOME/Library/LaunchAgents

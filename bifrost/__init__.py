@@ -1,8 +1,8 @@
-"""Gateway: every model call on this Mac goes through here (DESIGN.md).
+"""Bifrost: every model call on this Mac goes through here (DESIGN.md).
 
 `ask()` a small judgment, `call()` one Claude call for a surface (brain's tiers), `run_agent()` a
 tool-using job session, `mode()` a surface's mode.
-Gateway makes the call it is asked for and reports what happened: it never alerts, pings or files.
+Bifrost makes the call it is asked for and reports what happened: it never alerts, pings or files.
 """
 from __future__ import annotations
 

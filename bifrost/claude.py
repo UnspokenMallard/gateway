@@ -1,8 +1,8 @@
 """One `claude -p` call: the argument list, the account, the run, the parse, the limit and the ledger row.
 
 Moved here from Jarvis's `brain.command()` / `brain.work()` (the call half; brain keeps its caps,
-breaker and `brain_calls`), the HUD's three Haiku calls, Mind's session/memory/vault summaries and
-improve evals, and Forge's criteria scoring (2026-10-17).
+breaker and `brain_calls`), the HUD's three Haiku calls, Mimir's session/memory/vault summaries and
+improve evals, and Brokkr's criteria scoring (2026-10-17).
 
 Flags, each of them load-bearing:
 
@@ -14,17 +14,17 @@ Flags, each of them load-bearing:
   `--tools` is the complete tool set (none by default) and `dontAsk` refuses anything not
   pre-approved. Exactly brain's flags before the move, so the G15-measured proposer call is unchanged.
 - `bare=True` (every `ask()`): also `--setting-sources ''` (no settings files) and
-  `--no-session-persistence` (no transcript), as the HUD's and Mind's calls had. Measured
+  `--no-session-persistence` (no transcript), as the HUD's and Mimir's calls had. Measured
   2026-10-17 on both accounts: about 2.9k input tokens for a Haiku call.
 - `--max-budget-usd` hands the per-call ceiling to the CLI itself.
 
-Usage limits: a failed call's output is checked against Budget's limit patterns; a hit is recorded
-in Budget's window here and returned as `limit`, and the caller raises the alert (Gateway never
+Usage limits: a failed call's output is checked against Fafnir's limit patterns; a hit is recorded
+in Fafnir's window here and returned as `limit`, and the caller raises the alert (Gateway never
 alerts). A call that got through proves the window reopened (`limits.note_success`).
 
 Auth (2026-10-23): `auth=None` leaves the environment as it is. `"login"` is the account's subscription:
 `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` are stripped, because `claude -p` uses an API key over
-the OAuth login whenever one is set. There is no API-key mode: Gateway never reads or sets a Console key.
+the OAuth login whenever one is set. There is no API-key mode: Bifrost never reads or sets a Console key.
 """
 from __future__ import annotations
 
@@ -40,11 +40,11 @@ from typing import Any, Mapping
 from . import proc, store
 from ._budget import ledger, limits
 
-log = logging.getLogger("gateway.claude")
+log = logging.getLogger("bifrost.claude")
 
 HOME = Path.home()
 CONFIG_DIRS = {"personal": HOME / ".claude-personal", "work": HOME / ".claude-work"}
-# Quota provider per account; personal keeps the historical name for Budget's limit files.
+# Quota provider per account; personal keeps the historical name for Fafnir's limit files.
 PROVIDERS = {"personal": "claude", "work": "claude-work"}
 SCOPES = tuple(CONFIG_DIRS)
 AUTH_MODES = ("login",)
@@ -140,7 +140,7 @@ def _record(surface: str, job: str | None, ok: bool, duration: float, cost: floa
             ledger.record_call(surface, ok=ok, duration_s=duration, cost_usd=cost, model=model, detail=detail,
                                scope=scope)
     except Exception as exc:  # noqa: BLE001 - a ledger hiccup must not lose the answer
-        log.warning("gateway: could not record %s: %s", surface, exc)
+        log.warning("bifrost: could not record %s: %s", surface, exc)
 
 
 def call(surface: str, prompt: str, *, scope: str = "personal", model: str | None = None,
@@ -153,7 +153,7 @@ def call(surface: str, prompt: str, *, scope: str = "personal", model: str | Non
     `{"ok", "text", "cost_usd", "duration_s", "model", "reason", "limit", "code", "output"}`.
     The model is the surface's (`claude:<model>` in `[surfaces]`); `model` overrides it only for
     a caller whose model is the thing under test (Mind's improve evals). The call is recorded in
-    Budget's ledger as `surface` (provider_calls), or as `job` (job_calls, the weekly job budget).
+    Fafnir's ledger as `surface` (provider_calls), or as `job` (job_calls, the weekly job budget).
     """
     scope = scope if scope in CONFIG_DIRS else "personal"
     model = model or model_for(surface, cfg)
