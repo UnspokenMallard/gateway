@@ -31,7 +31,7 @@
 "job:nightly-reflection" = "claude:sonnet"
 "job:portfolio-advisor" = "claude:sonnet"
 "job:consultant-digest" = "claude:haiku"
-"job:weekly-activity" = "claude:haiku"
+"job:weekly-activity" = "claude:sonnet"   # back from Haiku 2026-10-25 (audit A37): Haiku failed 2 of 4 runs on tool denials
 "job:weekly-introspect" = "claude:sonnet"
 "job:hud-audit" = "claude:sonnet"
 "job:issue-triage" = "claude:sonnet"
