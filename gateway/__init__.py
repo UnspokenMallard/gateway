@@ -1,7 +1,7 @@
 """Gateway: every model call on this Mac goes through here (DESIGN.md).
 
 `ask()` a small judgment, `call()` one Claude call for a surface (brain's tiers), `run_agent()` a
-tool-using job session, `mode()` a surface's mode, `agreement()` the local model's shadow record.
+tool-using job session, `mode()` a surface's mode.
 Gateway makes the call it is asked for and reports what happened: it never alerts, pings or files.
 """
 from __future__ import annotations
@@ -12,14 +12,13 @@ from . import store
 from .agent import run_agent
 from .claude import (AUTH_MODES, aask, acall, ask, call, command, configured, env_for, exe,
                      model_for, parse_json)
-from .local import agreement, label_agreement
 
-__all__ = ["AUTH_MODES", "aask", "acall", "agreement", "ask", "call", "command", "configured", "env_for",
-           "exe", "label_agreement", "mode", "model_for", "parse_json", "run_agent", "surfaces"]
+__all__ = ["AUTH_MODES", "aask", "acall", "ask", "call", "command", "configured", "env_for",
+           "exe", "mode", "model_for", "parse_json", "run_agent", "surfaces"]
 
 
 def mode(surface: str, cfg: Mapping[str, Any] | None = None) -> str:
-    """`off`, `shadow`, `local` or `claude:<model>`; an unconfigured surface is `off`."""
+    """`claude:<model>`; an unconfigured surface is `off`."""
     return configured(surface, cfg) or "off"
 
 

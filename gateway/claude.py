@@ -37,7 +37,7 @@ import time
 from pathlib import Path
 from typing import Any, Mapping
 
-from . import local, proc, store
+from . import proc, store
 from ._budget import ledger, limits
 
 log = logging.getLogger("gateway.claude")
@@ -91,7 +91,7 @@ def configured(surface: str, cfg: Mapping[str, Any] | None = None) -> str | None
 
 
 def model_for(surface: str, cfg: Mapping[str, Any] | None = None) -> str | None:
-    """`haiku` for a surface set to `claude:haiku`; None for a local-model surface or an unknown one."""
+    """`haiku` for a surface set to `claude:haiku`; None for any other surface."""
     value = configured(surface, cfg) or ""
     return value.split(":", 1)[1] if value.startswith("claude:") and value[7:] else None
 
@@ -226,24 +226,14 @@ def ask(surface: str, prompt: str, schema: dict | None = None, scope: str = "per
         cfg: Mapping[str, Any] | None = None) -> dict | None:
     """A small judgment: no tools, no session files. Never raises.
 
-    A local-model surface (`off`, `shadow`, `local`): the local model's answer, or None when the
-    surface is off or the local call did not answer (the caller asks Claude through its own surface,
-    as before). A Claude surface: `call()`'s result plus `answer`, the parsed JSON when `schema` is
-    given (None when unreadable) or the text.
+    `call()`'s result plus `answer`, the parsed JSON when `schema` is given (None when unreadable)
+    or the text.
     """
     cfg = cfg if cfg is not None else store.load_config()
     how = configured(surface, cfg)
     if how is None and model is None:
         return {"ok": False, "answer": None, "text": "", "cost_usd": 0.0, "duration_s": 0.0, "model": "",
                 "limit": None, "reason": f"unknown surface {surface!r}"}
-    if how in (local.OFF, local.SHADOW, local.LOCAL):
-        started = time.time()
-        answer = local.judge_sync(surface, prompt, schema or {"type": "object"}, cfg, scope=scope)
-        if answer is None:
-            return None
-        return {"ok": True, "answer": answer, "text": json.dumps(answer), "cost_usd": 0.0,
-                "duration_s": round(time.time() - started, 3), "model": local._cfg(cfg)["model"], "limit": None,
-                "reason": "local"}
     out = call(surface, prompt, scope=scope, model=model, budget_usd=budget_usd, timeout_s=timeout_s, bare=True,
                system=system, system_file=system_file, job=job, auth=auth, cfg=cfg)
     out["answer"] = (parse_json(out["text"]) if schema is not None else out["text"]) if out["ok"] else None

@@ -9,7 +9,6 @@ lock, the logs and the artifact checks.
 """
 from __future__ import annotations
 
-import difflib
 import json
 import time
 import uuid
@@ -17,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping
 
-from . import claude, local, proc, store
+from . import claude, proc, store
 from ._budget import ledger, limits
 
 HOME = Path.home()
@@ -107,7 +106,7 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
               log_file: Path | None = None, surface: str | None = None, flags: list[str] | None = None,
               session: str | None = None, max_attempts: int = 3, backoff_s: int = 120,
               timeout_s: float | None = None, deny: bool = True, note: str = "", auth: str | None = None,
-              cfg: Mapping[str, Any] | None = None, shadow: bool = True) -> dict:
+              cfg: Mapping[str, Any] | None = None) -> dict:
     """One job session under its declared limits. Never raises.
 
     `{"code", "ok", "subtype", "cost_usd", "turns", "result", "denials", "session", "limit",
@@ -117,8 +116,6 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
     `flags` are extra CLI flags (the implementer's `--safe-mode --restricted`); `deny=False`
     drops the shared deny list for a caller whose allow rules are already a closed set.
     `auth` is `login` or None (see claude.py).
-    A job named in `[shadow.jobs]` also gets a read-only Haiku shadow run after a successful live run
-    (`_shadow`); `shadow=False` is how that run avoids shadowing itself.
     """
     cfg = cfg if cfg is not None else store.load_config()
     surface = surface or f"job:{job}"
@@ -196,8 +193,6 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
             return out
         transient = any(t in output for t in TRANSIENT)
         if code == 0 and not transient:
-            if ok and shadow:
-                _shadow(job, prompt, out, scope, cwd, allow, budget_usd, log_file, cfg, auth)
             return out
         if not transient:
             return out
@@ -206,32 +201,6 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
     out["code"] = out["code"] or 1
     return out
 
-
-SHADOW_SURFACE = "job:shadow-haiku"
-READ_RULES = ("Read", "Grep", "Glob")
-
-
-def _shadow(job: str, prompt: str, live: dict, scope: str, cwd: Path | str | None, allow: list[str] | None,
-            budget_usd: float, log_file: Path | None, cfg: Mapping[str, Any], auth: str | None = None) -> None:
-    """Haiku answers the prompt of a live job next to the live model (T6, 2026-10-22). `[shadow.jobs]` names
-    the jobs and `[shadow] until` (YYYY-MM-DD) ends it. The shadow run is read-only (no Write, no Bash, only
-    the Read/Grep/Glob allow rules), billed in Budget as `<job>-shadow`, and its answer is never used:
-    both answers go to `local_llm_shadow` (surface `job:<job>`, `local` = Haiku, `remote` = the live
-    model; `agree` is a rough text similarity of at least 0.5). Never raises."""
-    section = cfg.get("shadow") or {}
-    if job not in (section.get("jobs") or {}) or str(datetime.now().date()) > str(section.get("until") or "0"):
-        return
-    try:
-        read_only = [a for a in allow or [] if a.startswith(READ_RULES)]
-        sh = run_agent(f"{job}-shadow", prompt, ",".join(READ_RULES), read_only, min(budget_usd, 0.5), scope=scope,
-                       cwd=cwd, optional=True, log_file=log_file, surface=SHADOW_SURFACE, max_attempts=1,
-                       timeout_s=600, note="shadow", auth=auth, cfg=cfg, shadow=False)
-        ratio = difflib.SequenceMatcher(None, live["result"][:4000], sh["result"][:4000]).quick_ratio()
-        local.record_shadow(f"job:{job}", sh["result"][:3000], live["result"][:3000], sh["ok"] and ratio >= 0.5,
-                            f"{sh['model']} ${sh['cost_usd']:.3f} {sh['turns']}t sim={ratio:.2f} vs {live['model']} "
-                            f"${live['cost_usd']:.3f} {live['turns']}t denials={','.join(sh['denials'])}")
-    except Exception as exc:  # noqa: BLE001 - the shadow must never break the job it measures
-        _log(log_file, f"(shadow run of {job} failed: {exc})")
 
 
 def reject(run: Mapping[str, Any], why: str) -> None:

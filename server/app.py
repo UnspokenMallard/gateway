@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from gateway import agreement, ask, store, surfaces  # noqa: E402
+from gateway import ask, store, surfaces  # noqa: E402
 from gateway.claude import SCOPES, exe  # noqa: E402
 from starlette.applications import Starlette  # noqa: E402
 from starlette.middleware import Middleware  # noqa: E402
@@ -35,14 +35,6 @@ def health(_r: Request) -> JSONResponse:
 
 def list_surfaces(_r: Request) -> JSONResponse:
     return JSONResponse(surfaces())
-
-
-def agreement_answer(r: Request) -> JSONResponse:
-    try:
-        days = int(r.query_params.get("days", 14))
-    except ValueError:
-        return JSONResponse({"error": "days must be an integer"}, status_code=400)
-    return JSONResponse(agreement(days))
 
 
 async def ask_endpoint(r: Request) -> JSONResponse:
@@ -67,7 +59,6 @@ async def ask_endpoint(r: Request) -> JSONResponse:
 routes = [
     Route("/health", health),
     Route("/surfaces", list_surfaces),
-    Route("/agreement", agreement_answer),
     Route("/ask", ask_endpoint, methods=["POST"]),
 ]
 

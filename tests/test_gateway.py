@@ -20,7 +20,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "server"))
 
 import gateway  # noqa: E402
-from gateway import agent, claude, local, proc, store  # noqa: E402
+from gateway import agent, claude, proc, store  # noqa: E402
 from gateway._budget import ledger, limits  # noqa: E402
 
 RAN: list = []
@@ -55,8 +55,7 @@ def test_command():
 
 def test_routing_and_parse():
     assert gateway.mode("escalation") == "claude:sonnet" and gateway.mode("nobody") == "off"
-    assert gateway.model_for("job:checkups") == "sonnet" and gateway.model_for("inbound-critical") is None
-    assert gateway.ask("inbound-critical", "p", {"type": "object"}) is None  # local surface, local model off
+    assert gateway.model_for("job:checkups") == "sonnet" and gateway.model_for("nobody") is None
     assert gateway.ask("nobody", "p")["ok"] is False  # an unknown surface never reaches a model
     proc_run, claude.proc.run = claude.proc.run, fake_run(
         json.dumps({"type": "result", "subtype": "success", "result": '```json\n{"project": "jarvis"}\n```',
@@ -82,37 +81,8 @@ def test_routing_and_parse():
         claude.proc.run = proc_run
 
 
-def test_local_shadow():
-    local.record_shadow("s", "NORMAL", "NORMAL", True)
-    local.record_shadow("s", "NORMAL", "CRITICAL", False)
-    assert {a["surface"]: a for a in gateway.agreement()}["s"] == {"surface": "s", "n": 2, "agree": 0.5}
+def test_store_path():
     assert store.DB_PATH == TMP / "gateway" / "state" / "gateway.db"
-
-
-def test_local_format_501_fallback():
-    import urllib.error
-    schema = {"type": "object", "properties": {"label": {"enum": ["CRITICAL", "NORMAL"]}}, "required": ["label"]}
-    cfg = {"local": {"enabled": True, "model": "qwen3.5:4b"}, "surfaces": {"s": "local"}}
-    sent, reply = [], {}
-
-    def post(url, body, timeout_s):
-        sent.append(body)
-        if "format" in body:
-            raise urllib.error.HTTPError(url, 501, "structured output is unavailable", None, None)
-        return {"message": {"content": reply["text"]}}
-
-    post0, pressure0 = local._post, local.pressure_reason
-    local._post, local.pressure_reason = post, lambda *_: None
-    try:
-        reply["text"] = ' {"label": "critical"}\n'
-        assert local.judge_sync("s", "p", schema, cfg) == {"label": "CRITICAL"}
-        assert "format" in sent[0] and "format" not in sent[1] and "JSON schema" in sent[1]["messages"][0]["content"]
-        for bad in ('{"label": "maybe"}', "{}", "CRITICAL"):  # off-enum, missing key, not JSON: Haiku answers instead
-            reply["text"] = bad
-            assert local.judge_sync("s", "p", schema, cfg) is None, bad
-        assert rows("SELECT ok FROM provider_calls WHERE surface = 'local:s' ORDER BY id DESC LIMIT 1") == [(0,)]
-    finally:
-        local._post, local.pressure_reason = post0, pressure0
 
 
 def test_run_agent():
@@ -155,30 +125,6 @@ def test_run_agent():
         agent.RUN = saved
 
 
-def test_job_shadow():
-    done = json.dumps({"type": "result", "subtype": "success", "total_cost_usd": 0.05, "num_turns": 2,
-                       "result": "the same review", "permission_denials": [{"tool_name": "Write"}]})
-    cfg = {**store.load_config(), "shadow": {"until": "2999-01-01", "jobs": {"checkups": "claude:haiku"}}}
-    saved = agent.RUN
-    try:
-        agent.RUN = fake_run(done)
-        n = len(RAN)
-        out = gateway.run_agent("checkups", "p", "Read,Write,Bash", ["Read(//x/**)", "Write(//x/r.md)"], 2.0, cfg=cfg)
-        assert out["ok"] and len(RAN) == n + 2  # the live run, then Haiku's
-        cmd = RAN[-1]["cmd"]
-        assert cmd[cmd.index("--model") + 1] == "haiku" and cmd[cmd.index("--tools") + 1] == "Read,Grep,Glob"
-        assert "Write(//x/r.md)" not in cmd and "Read(//x/**)" in cmd  # read-only, whatever the job may write
-        assert rows("SELECT job, ok, model FROM job_calls ORDER BY id DESC LIMIT 1") == [("checkups-shadow", 1, "haiku")]
-        with store.connect() as conn:
-            shadow = conn.execute("SELECT surface, agree, detail FROM local_llm_shadow ORDER BY id DESC LIMIT 1").fetchone()
-        assert shadow[:2] == ("job:checkups", 1) and "denials=Write" in shadow[2], shadow
-        n = len(RAN)
-        gateway.run_agent("checkups", "p", "Read", None, 2.0, cfg={**cfg, "shadow": {"until": "2000-01-01", "jobs": {"checkups": "x"}}})
-        gateway.run_agent("issue-triage", "p", "Read", None, 2.0, cfg=cfg)
-        assert len(RAN) == n + 2  # an ended shadow and an unlisted job run once each
-    finally:
-        agent.RUN = saved
-
 
 def test_proc_timeout_kills():
     code, out = proc.run([sys.executable, "-c", "import time; time.sleep(30)"], timeout_s=1)
@@ -206,8 +152,6 @@ def test_service_and_cli():
     env = {**os.environ, "GATEWAY_HOME": str(TMP / "gateway"), "BUDGET_HOME": str(TMP / "budget")}
     s = subprocess.run([str(ROOT / "bin" / "gateway"), "surfaces"], capture_output=True, text=True, env=env)
     assert s.returncode == 0 and "job:implementer" in s.stdout
-    s = subprocess.run([str(ROOT / "bin" / "gateway"), "ask", "inbound-critical", "p"], capture_output=True, text=True, env=env)
-    assert s.returncode == 0 and json.loads(s.stdout)["answer"] is None  # off: nothing called
 
 
 def test_auth_modes():
@@ -260,11 +204,9 @@ if __name__ == "__main__":
     test_command()
     test_job_session_strict_mcp()
     test_routing_and_parse()
-    test_local_shadow()
-    test_local_format_501_fallback()
+    test_store_path()
     test_run_agent()
     test_auth_modes()
-    test_job_shadow()
     test_proc_timeout_kills()
     test_service_and_cli()
     print("ok")
