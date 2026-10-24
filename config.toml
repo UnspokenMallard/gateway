@@ -24,6 +24,8 @@
 "mind-improve-draft" = "claude:haiku"
 "mind-improve-subject" = "claude:sonnet"   # the model under test; IMPROVE_SUBJECT_MODEL still overrides it
 "mind-improve-judge" = "claude:haiku"
+# Jarvis:
+"promises-extract" = "claude:haiku"       # daily batch: candidate promises in Anze's own session prompts (2026-10-24)
 
 # Tool-using job sessions (run_agent), one per job:
 "job:nightly-reflection" = "claude:sonnet"
