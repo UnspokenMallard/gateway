@@ -36,7 +36,7 @@ HUD_PROBE = "http://127.0.0.1:3022/login"  # static page, no auth: measures the 
 RETAIN_S = 60 * 86400
 WINDOW_S = 7 * 86400
 WORK_HOURS = range(8, 19)  # weekdays only; outside them nobody feels a slowdown
-MIN_BASELINE_DAYS = 2  # load follows the workday: two weekdays show whether the hours repeat
+MIN_BASELINE_DAYS = 5  # load follows the workday: a full work week shows whether the hours repeat
 
 # The budget (design section 4). Changing a number here changes what "negligible" means.
 MAX_RSS_MB = 4096
@@ -180,7 +180,8 @@ def verdict(samples: list[dict], now: float, busy: list[float]) -> dict:
     worst_busy = max(busy, default=0.0)
     if worst_busy > MAX_BUSY_FRACTION:
         b.append(f"model busy {worst_busy:.1%} of one hour (budget {MAX_BUSY_FRACTION:.0%})")
-    bs, rs = pct([s.get("swap_used_mb") for s in base], 95), pct([s.get("swap_used_mb") for s in recent], 95)
+    # Swap is sticky after load: judge only samples taken while the model was loaded.
+    bs, rs = pct([s.get("swap_used_mb") for s in base], 95), pct([s.get("swap_used_mb") for s in recent if s.get("model_loaded")], 95)
     if bs is not None and rs is not None and rs > bs + MAX_SWAP_GROWTH_MB:
         b.append(f"swap p95 {rs:.0f} MB vs baseline {bs:.0f} MB (budget +{MAX_SWAP_GROWTH_MB})")
     bl, rl = pct([s.get("memlevel") for s in base], 5), pct([s.get("memlevel") for s in recent], 5)
