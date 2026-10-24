@@ -1,30 +1,7 @@
 # Gateway (DESIGN.md): which model answers each surface. A caller names its surface, never a model.
 # Read at call time: a change here takes effect on the next call, no restart.
 
-[local]
-# The local model (gateway/local.py, TRIAGE-MODEL-DESIGN.md in ~/.jarvis). Moved from Jarvis's
-# [local_llm] 2026-10-17. Off until Ollama is installed after the 2-weekday perf baseline
-# (jobs/local-llm-perf.py). Then set `model`, `enabled = true` and each local surface to "shadow";
-# "local" only after the design's step 3 gate (>= 95% agreement, no CRITICAL-to-NORMAL miss, within
-# the performance budget). Host decided by Anze 2026-10-16: this Mac; anzes-pc can be added later.
-enabled = true
-host = "http://127.0.0.1:11434"
-model = "qwen3.5:4b"
-timeout_s = 10
-keep_alive = "10m"
-# Skip local calls (Haiku answers instead) while kern.memorystatus_level is below this.
-# A starting point (design D4); calibrate it from the baseline where swap starts growing.
-min_memlevel = 30
-
 [surfaces]
-# Local-model surfaces: "off" | "shadow" | "local". The caller asks Claude through its own surface
-# when the local model does not answer.
-"inbound-critical" = "shadow"       # Asana task triage (Jarvis daemon/inbound.py)
-"briefing-triage" = "shadow"        # mail and chat triage (Jarvis daemon/briefing.py)
-# memory-contradict (Mind contradict.py): checks a new note against its closest notes. It has no
-# Haiku path, so "shadow" and "local" behave the same; it only warns, never blocks.
-"memory-contradict" = "local"   # D10, 2026-10-21: warn-only, no Haiku path
-
 # Claude surfaces: "claude:<model>". Each keeps the model it had before Gateway (2026-10-17).
 # Jarvis's brain (its caps, breaker and brain_calls stay in Jarvis):
 "escalation" = "claude:sonnet"             # brain.answer_escalation, Read/Grep/Glob in the repo
@@ -60,14 +37,4 @@ min_memlevel = 30
 "job:remediate" = "claude:sonnet"          # Jarvis incident remediation (2026-10-18)
 "job:proposer" = "claude:sonnet"           # Mind's nightly Proposer edit agent (2026-10-21)
 "job:implementer" = "claude:sonnet"        # Forge's implementer (was [implementer] model in Jarvis's config)
-"job:shadow-haiku" = "claude:haiku"        # the Haiku shadow runs below (T6, 2026-10-22)
 
-[shadow]
-# A week of read-only Haiku runs next to two small Sonnet jobs (gateway/agent.py `_shadow`). Neither reply
-# goes straight to Anze. Sonnet stays live. Both answers land in state/gateway.db `local_llm_shadow`
-# (surface `job:<job>`); read them with `gateway.local.agreement()` or by SQL. The shadow ends after `until`.
-until = "2026-10-29"
-
-[shadow.jobs]
-"portfolio-advisor-work" = "claude:haiku"
-"review-hud-tasks" = "claude:haiku"
