@@ -12,10 +12,10 @@ from . import store
 from .agent import run_agent
 from .claude import (AUTH_MODES, aask, acall, ask, call, command, configured, env_for, exe,
                      model_for, parse_json)
-from .local import agreement
+from .local import agreement, label_agreement
 
 __all__ = ["AUTH_MODES", "aask", "acall", "agreement", "ask", "call", "command", "configured", "env_for",
-           "exe", "mode", "model_for", "parse_json", "run_agent", "surfaces"]
+           "exe", "label_agreement", "mode", "model_for", "parse_json", "run_agent", "surfaces"]
 
 
 def mode(surface: str, cfg: Mapping[str, Any] | None = None) -> str:

@@ -203,3 +203,31 @@ def agreement(days: int = 14) -> list[dict]:
         rows = conn.execute("SELECT surface, count(*), sum(agree) FROM local_llm_shadow WHERE ts >= ? GROUP BY surface",
                             (time.time() - days * 86400,)).fetchall()
     return [{"surface": s, "n": n, "agree": round((a or 0) / n, 3)} for s, n, a in rows]
+
+
+def label_agreement(days: int = 14, keys: tuple[str, ...] = ("urgent", "needs_reply")) -> list[dict]:
+    """Per surface: rows whose JSON labels match Haiku's exactly, and the CRITICAL misses (Haiku urgent,
+    local not). Haiku is the reference. Rows that are not JSON objects count as unparsed, not as misses."""
+    ensure_schema()
+    with store.connect() as conn:
+        rows = conn.execute("SELECT surface, local, remote FROM local_llm_shadow WHERE ts >= ?",
+                            (time.time() - days * 86400,)).fetchall()
+    out: dict[str, dict] = {}
+    for surface, local_raw, remote_raw in rows:
+        s = out.setdefault(surface, {"surface": surface, "n": 0, "unparsed": 0, "label_agree": 0, "critical_misses": 0})
+        s["n"] += 1
+        try:
+            local, remote = json.loads(local_raw), json.loads(remote_raw)
+        except (TypeError, ValueError):
+            local = remote = None
+        if not isinstance(local, dict) or not isinstance(remote, dict):
+            s["unparsed"] += 1
+            continue
+        if all(local.get(k) == remote.get(k) for k in keys):
+            s["label_agree"] += 1
+        if remote.get("urgent") is True and local.get("urgent") is not True:
+            s["critical_misses"] += 1
+    for s in out.values():
+        judged = s["n"] - s["unparsed"]
+        s["label_agree_rate"] = round(s["label_agree"] / judged, 3) if judged else None
+    return list(out.values())

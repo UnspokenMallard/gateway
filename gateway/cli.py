@@ -5,7 +5,7 @@ import argparse
 import json
 import sys
 
-from . import agreement, ask, surfaces
+from . import agreement, ask, label_agreement, surfaces
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -33,5 +33,5 @@ def main(argv: list[str] | None = None) -> int:
         for name, how in surfaces().items():
             print(f"{name:28} {how}")
         return 0
-    print(json.dumps(agreement(args.days), indent=2))
+    print(json.dumps({"text": agreement(args.days), "labels": label_agreement(args.days)}, indent=2))
     return 0
