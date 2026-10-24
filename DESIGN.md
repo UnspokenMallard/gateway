@@ -75,7 +75,7 @@ one surface per job; Bifrost takes brain's whole call (argv, run, parse, limit r
 breaker and `brain_calls`.
 
 Layout as Fafnir's: `bifrost/` library (paths from `BIFROST_HOME`, default `~/.gateway`; tests set it to scratch):
-`store.py` (`state/gateway.db`, `config.toml`), `claude.py` (`command`, `call`, `ask`, accounts, surfaces), `agent.py`
+`store.py` (paths and `config.toml`; no database), `claude.py` (`command`, `call`, `ask`, accounts, surfaces), `agent.py`
 (`run_agent`, the shared deny list, `command`, `RUN`), `proc.py` (the file-backed, tree-killing process runner, copied from
 `core._run_process_blocking`), `cli.py` behind `bin/gateway`, `server/app.py` (launchd `com.gateway.server`,
 `bin/install-launchd [status]`, log `state/logs/server.log`), `config.toml`, `tests/test_bifrost.py`. Own venv (starlette,

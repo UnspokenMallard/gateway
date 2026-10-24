@@ -61,7 +61,7 @@ covers these rows too. The rule stays: this component measures or knows; Jarvis 
 
 ## C: something is broken
 
-> A model call broke after the Gateway cutover. First, do not delete `gateway.db`, `budget.db`, a state file or a log.
+> A model call broke after the Gateway cutover. First, do not delete a state file, a log or an archived `*.db.archived-2026-10-24`.
 > Run `~/.jarvis/.venv/bin/python ~/.jarvis/status.py`, `curl -s http://127.0.0.1:3027/health`,
 > `tail -40 ~/.gateway/state/logs/server.log`, the failing job's log, and `gateway surfaces`; report before fixing. Rolling
 > back is `git revert` of the cutover commits in `~/.jarvis` (6325365, b1fae1f), `~/.mind` (dd0c8e7) and `~/.forge` (f29a727)

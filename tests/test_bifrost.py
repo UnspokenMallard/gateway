@@ -82,7 +82,7 @@ def test_routing_and_parse():
 
 
 def test_store_path():
-    assert store.DB_PATH == TMP / "bifrost" / "state" / "gateway.db"
+    assert store.STATE == TMP / "bifrost" / "state" and not hasattr(store, "connect")  # no database of its own
 
 
 def test_run_agent():

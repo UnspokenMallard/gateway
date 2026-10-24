@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from bifrost import ask, store, surfaces  # noqa: E402
+from bifrost import ask, surfaces  # noqa: E402
 from bifrost.claude import SCOPES, exe  # noqa: E402
 from starlette.applications import Starlette  # noqa: E402
 from starlette.middleware import Middleware  # noqa: E402
@@ -29,7 +29,7 @@ HTTP_SURFACES = ("hud-",)
 
 
 def health(_r: Request) -> JSONResponse:
-    return JSONResponse({"ok": True, "db": str(store.DB_PATH), "claude": exe() is not None,
+    return JSONResponse({"ok": True, "claude": exe() is not None,
                          "surfaces": len(surfaces())})
 
 
