@@ -19,7 +19,7 @@ Flags, each of them load-bearing:
 - `--max-budget-usd` hands the per-call ceiling to the CLI itself.
 
 Usage limits: a failed call's output is checked against Fafnir's limit patterns; a hit is recorded
-in Fafnir's window here and returned as `limit`, and the caller raises the alert (Gateway never
+in Fafnir's window here and returned as `limit`, and the caller raises the alert (Bifrost never
 alerts). A call that got through proves the window reopened (`limits.note_success`).
 
 Auth (2026-10-23): `auth=None` leaves the environment as it is. `"login"` is the account's subscription:
@@ -152,7 +152,7 @@ def call(surface: str, prompt: str, *, scope: str = "personal", model: str | Non
 
     `{"ok", "text", "cost_usd", "duration_s", "model", "reason", "limit", "code", "output"}`.
     The model is the surface's (`claude:<model>` in `[surfaces]`); `model` overrides it only for
-    a caller whose model is the thing under test (Mind's improve evals). The call is recorded in
+    a caller whose model is the thing under test (Mimir's improve evals). The call is recorded in
     Fafnir's ledger as `surface` (provider_calls), or as `job` (job_calls, the weekly job budget).
     """
     scope = scope if scope in CONFIG_DIRS else "personal"
