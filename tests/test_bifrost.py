@@ -1,4 +1,4 @@
-"""Bifrost against a scratch home and a scratch Fafnir: the argument lists, routing by surface, the
+"""Bifrost against a scratch home and a scratch Fafnir on a scratch Mimir: the argument lists, routing by surface, the
 parse, the usage-limit record, the ledger rows, run_agent's gate, retries and cap, the service's
 guard, and the CLI. Nothing reaches a model: the process runner is replaced.
 Run: ~/.gateway/.venv/bin/python ~/.gateway/tests/test_bifrost.py"""
@@ -13,11 +13,19 @@ from pathlib import Path
 TMP = Path(tempfile.mkdtemp(prefix="bifrost-test-"))
 os.environ["BIFROST_HOME"] = str(TMP / "bifrost")  # read at import: never the live store
 os.environ["FAFNIR_HOME"] = str(TMP / "budget")
+os.environ["MEMORY_DB"] = str(TMP / "memory.db")  # Mimir's store, a scratch one
+os.environ["MIMIR_OUTBOX"] = str(TMP / "outbox")
 ROOT = Path(__file__).resolve().parents[1]
 (TMP / "bifrost").mkdir()
 shutil.copy(ROOT / "config.toml", TMP / "bifrost" / "config.toml")  # the live surfaces, scratch data
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "server"))
+sys.path.insert(0, str(Path.home() / ".mind" / "mimir"))
+
+import mem  # noqa: E402
+import mimirrecords as mr  # noqa: E402
+
+mr.use_local(mem.connect(shared=True))  # Fafnir's ledger goes to the scratch store in-process, no HTTP
 
 import bifrost  # noqa: E402
 from bifrost import agent, claude, proc, store  # noqa: E402
@@ -33,10 +41,10 @@ def fake_run(answer: str, code: int = 0):
     return run
 
 
-def rows(sql: str):
-    import sqlite3
-    with sqlite3.connect(TMP / "budget" / "state" / "budget.db") as conn:
-        return conn.execute(sql).fetchall()
+def rows(stream: str, *fields: str, n: int = 1):
+    """The newest `n` rows of one Fafnir ledger stream, each as a tuple of `fields`."""
+    got = mr.query(stream=stream, source="fafnir", limit=n, order="desc")
+    return [tuple(r["data"].get(f) for f in fields) for r in got]
 
 
 def test_command():
@@ -66,10 +74,10 @@ def test_routing_and_parse():
         sent = RAN[-1]
         assert sent["input"] == "which?" and sent["env"]["CLAUDE_CONFIG_DIR"].endswith(".claude-work")
         assert "--setting-sources" in sent["cmd"] and sent["cmd"][sent["cmd"].index("--model") + 1] == "haiku"
-        assert rows("SELECT surface, ok, cost_usd, model, scope FROM provider_calls ORDER BY id DESC LIMIT 1") == \
+        assert rows("fafnir.provider_call", "surface", "ok", "cost_usd", "model", "scope") == \
             [("hud-task-classify", 1, 0.002, "haiku", "work")]
         bifrost.ask("mind-session-history", "s", {}, "personal", job="session-history")
-        assert rows("SELECT job, ok, cost_usd FROM job_calls ORDER BY id DESC LIMIT 1") == [("session-history", 1, 0.002)]
+        assert rows("fafnir.job_call", "job", "ok", "cost_usd") == [("session-history", 1, 0.002)]
         claude.proc.run = fake_run("API Error: 429 Too Many Requests", code=1)
         out = bifrost.call("escalation", "x", budget_usd=0.5)
         assert out["ok"] is False and out["limit"] is not None and out["reason"].startswith("usage limit")
@@ -96,18 +104,20 @@ def test_run_agent():
         cmd = RAN[-1]["cmd"]
         assert out["ok"] and out["code"] == 0 and out["cost_usd"] == 0.4 and out["denials"] == ["Bash"], out
         assert cmd[cmd.index("--model") + 1] == "sonnet" and "--disallowedTools" in cmd and RAN[-1]["input"] == "do it"
-        assert rows("SELECT job, ok, cost_usd, model FROM job_calls ORDER BY id DESC LIMIT 1") == \
+        assert rows("fafnir.job_call", "job", "ok", "cost_usd", "model") == \
             [("checkups", 1, 0.4, "sonnet")]
-        assert rows("SELECT detail, reason, attempt FROM job_calls ORDER BY id DESC LIMIT 1") == \
+        assert rows("fafnir.job_call", "detail", "reason", "attempt") == \
             [("success turns=3 attempt=1 denials=1[Bash]", "", 1)]  # names of the denied tools, not just a count
         agent.reject(out, "no artifact")  # the job refuses the output of a call that succeeded
-        assert rows("SELECT ok, reason FROM job_calls ORDER BY id DESC LIMIT 1") == [(1, "no artifact")]
+        # the call row stays as written: the refusal is its own row, joined to the call by uid
+        assert rows("fafnir.job_reject", "job_uid", "reason") == [(out["ledger_id"], "no artifact")]
+        assert ledger.wasted_spend(7) == [{"job": "checkups", "rows": 1, "usd": 0.4}]  # and Fafnir counts it wasted
         assert "wrote it" in log.read_text()
         n = len(RAN)
         agent.RUN = fake_run("fetch failed", code=1)
         out = bifrost.run_agent("checkups", "p", "Read", None, 1.0, max_attempts=2, backoff_s=0)
         assert out["code"] == 1 and len(RAN) == n + 2  # a transient error is retried, then given up
-        assert rows("SELECT ok, reason, attempt FROM job_calls ORDER BY id DESC LIMIT 2") == \
+        assert rows("fafnir.job_call", "ok", "reason", "attempt", n=2) == \
             [(0, "no-result", 2), (0, "no-result", 1)]  # each attempt is a row with its number and why it was wasted
         agent.RUN = fake_run(json.dumps({"type": "result", "subtype": "error_max_budget_usd", "total_cost_usd": 1.0}), 1)
         out = bifrost.run_agent("checkups", "p", "Read", None, 1.0, max_attempts=3, backoff_s=0)
