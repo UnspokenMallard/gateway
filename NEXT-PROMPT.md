@@ -42,8 +42,11 @@ covers these rows too. The rule stays: this component measures or knows; Jarvis 
 - **A42 (Phase 4)** `~/.analyst/odin/common.py` and `~/.mind/mimir/agentjob.py` keep their own
   copies of `run_claude_job`; fold them into Gateway's client.
 
+**Status 2026-10-25 (HUD task freyr-398c, merge with Jarvis):** A37 (a6ceb4f): `job:weekly-activity` routes to `claude:sonnet` again; Haiku failed 2 of 4 runs on tool denials.
+
 | When (earliest useful, not a deadline) | Step | Waits on |
 |---|---|---|
+| 2026-10-26 after 07:45 | weekly-activity ran on Sonnet and exited 0 | the weekly run |
 | with Phase 0 | A05: `--strict-mcp-config` in `command()` (check first, see above) | Phase 0 approval |
 | with Phase 3 | A30 cap-hit report | Phase 3 approval |
 
