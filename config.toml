@@ -54,5 +54,5 @@ model = "sonnet"
 # acp_command = [...]      # the adapter's command line; default ~/.gateway/acp/node_modules/.bin/claude-agent-acp
 
 [sessions.kinds]
-# "task" = "acp"           # a kind not listed here uses `default`. Flip a kind only after re-reading the billing note
+# "hud-task" = "acp"       # the HUD's task sessions. A kind not listed here uses `default`. Flip a kind only after re-reading the billing note
                            # in DESIGN.md: Agent SDK use is subscription-billed today, and Anthropic said that may change.

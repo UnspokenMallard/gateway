@@ -162,7 +162,7 @@ default = "tmux"        # a kind not listed below
 max = 10                # sessions running at once, both runners together
 max_acp = 4             # adapters at once (about 0.6 GB RSS each)
 [sessions.kinds]
-"task" = "acp"          # the HUD's task chats (the kind names are the caller's)
+"hud-task" = "acp"      # the HUD's task chats (the kind names are the caller's)
 ```
 
 Read when a session starts. **The first start pins the runner in `state/sessions.json` and every later call, including a
