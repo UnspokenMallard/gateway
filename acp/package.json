@@ -1,0 +1,8 @@
+{
+  "name": "gateway-acp",
+  "private": true,
+  "description": "The ACP adapter the Bifrost acp runner starts (bifrost/sessions/acp.py). Pinned: protocol v1; bump on purpose and re-run tests/test_sessions.py.",
+  "dependencies": {
+    "@agentclientprotocol/claude-agent-acp": "0.95.0"
+  }
+}
