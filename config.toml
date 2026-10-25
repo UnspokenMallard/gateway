@@ -40,3 +40,19 @@
 "job:proposer" = "claude:sonnet"           # Mimir's nightly Proposer edit agent (2026-10-21)
 "job:implementer" = "claude:sonnet"        # Brokkr's implementer (was [implementer] model in Jarvis's config)
 
+
+# Long-lived Claude Code sessions (bifrost.sessions, DESIGN.md "Sessions"): which runner a kind of session gets.
+# "tmux" = the TUI in a tmux session (the HUD's way); "acp" = the claude-agent-acp adapter over stdio. One or the other
+# per session, never both: the first start pins the runner in state/sessions.json and a resume keeps it.
+# Read when a session starts, so an edit moves only sessions started after it.
+[sessions]
+default = "tmux"
+max = 10                   # sessions running at once, both runners together
+max_acp = 4                # adapters at once: each holds about 0.6 GB
+model = "sonnet"
+# tmux_socket = "hud"      # HUD_TMUX_SOCKET overrides it (tests)
+# acp_command = [...]      # the adapter's command line; default ~/.gateway/acp/node_modules/.bin/claude-agent-acp
+
+[sessions.kinds]
+# "task" = "acp"           # a kind not listed here uses `default`. Flip a kind only after re-reading the billing note
+                           # in DESIGN.md: Agent SDK use is subscription-billed today, and Anthropic said that may change.
