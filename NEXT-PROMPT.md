@@ -50,6 +50,24 @@ covers these rows too. The rule stays: this component measures or knows; Jarvis 
 | with Phase 0 | A05: `--strict-mcp-config` in `command()` (check first, see above) | Phase 0 approval |
 | with Phase 3 | A30 cap-hit report | Phase 3 approval |
 
+## Sessions switch: tmux or ACP (built 2026-10-25, HUD task njord-ed21)
+
+Bifrost now runs long-lived Claude sessions two ways, chosen per kind in `config.toml` `[sessions.kinds]`: the TUI in tmux
+(default, the HUD's old way) or the claude-agent-acp adapter (ACP). One or the other for a session, never both; the first
+start pins the runner in `state/sessions.json`. `DESIGN.md` "Sessions" has the layout and routes. The HUD side is in
+`~/.jarvis/hud` (`lib/sessions.js`, kind `hud-task`; README "Two runners"). Every kind is still `tmux`: nothing changes
+until you flip one. Tests: `~/.gateway/.venv/bin/python ~/.gateway/tests/test_sessions.py`; HUD `node --test test/sessions.test.js`.
+Both repos' branches are `hud/njord-ed21`; they reach `main` / `master` only when Anze says Done.
+
+| When (earliest useful, not a deadline) | Step | Waits on |
+|---|---|---|
+| after Done of `njord-ed21` | `cd ~/.gateway/acp && npm install --ignore-scripts` (adapter 0.95.0, pinned in `package.json`), `bin/install-launchd`, restart the HUD; check `curl -s http://127.0.0.1:3027/sessions` shows `switch.kinds` empty | the merge |
+| 2026-11-01 | re-read Anthropic help article 15036540 (2026-10-07: Agent SDK and `claude -p` still on the subscription, the June split paused). Do not flip a kind if that changed | a month since the last check |
+| after the check above | one throwaway HUD task with `hud-task = "acp"`: a real prompt turn, a permission prompt, an `AskUserQuestion` form (including a typed-only answer), `/clear`, a `send` while busy, mode names, a Gateway restart then resume. Needs Anze's OK: it spends a real turn | billing check, Anze |
+| after a clean trial | wire what the HUD skips for ACP: mode cycling, the preview window (`task.tmux:preview` breaks for ACP tasks), the orchestrator's `quiet_for` stall watchdog | the trial |
+
+Verified 2026-10-25 only against `tests/fake_acp.py` and a real adapter handshake; no real model prompt went through the adapter.
+
 ## A: advance the work
 
 > Read `~/.gateway/DESIGN.md` ("As built") and this file, then do the first row of the table above whose date has come and
@@ -69,3 +87,17 @@ covers these rows too. The rule stays: this component measures or knows; Jarvis 
 > `tail -40 ~/.gateway/state/logs/server.log`, the failing job's log, and `gateway surfaces`; report before fixing. Rolling
 > back is `git revert` of the cutover commits in `~/.jarvis` (6325365, b1fae1f), `~/.mind` (dd0c8e7) and `~/.forge` (f29a727)
 > plus `~/.jarvis/restart.sh`.
+
+## Sessions switch prompts
+
+**A-S, advance.** > Read `~/.gateway/DESIGN.md` "Sessions" and the "Sessions switch" table in this file, then do the first row
+that has come due and is not done. Never flip a kind to `acp` before the billing re-check and my OK. Existing tmux tasks and my
+own tmux sessions stay untouched; the default stays `tmux`. Stop and tell me if anything differs from what the table expects.
+
+**B-S, status only.** > Read the same two places, run `curl -s http://127.0.0.1:3027/sessions`, and report the switch and the
+live sessions. Change nothing.
+
+**C-S, broken.** > An ACP task misbehaves. Do not `forget` the session or delete `state/sessions.json` first: they
+hold the runner pin and the resumable session id. Read `curl -s http://127.0.0.1:3027/session/<id>`, `tail -40
+~/.gateway/state/logs/server.log` and the task in the HUD; report before fixing. The way back is setting the kind to `tmux`
+in `config.toml`: new tasks use tmux, a pinned ACP task keeps its runner until it is forgotten.
