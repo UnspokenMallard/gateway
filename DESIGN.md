@@ -140,3 +140,89 @@ green before and after; Bifrost's tests green. Live after the 00:11 restart: `/h
 ($0.0002), one `run_agent` session accepted by the CLI (stopped at its $0.10 test cap: job sessions load the full profile,
 about 170k cache-creation tokens, as before), `gateway-check` running on the new path, `gateway-unreachable` #59 (raised
 before the service was installed) resolved by evidence.
+
+## Sessions: the tmux and ACP runners (2026-10-25, HUD task njord-ed21)
+
+A third kind of call besides `ask` and `run_agent`: a long-lived, interactive Claude Code session the HUD drives (a task
+chat). Until now the HUD ran each one in a tmux session and scraped the screen. Bifrost now owns that, behind **one switch
+with two runners**: `tmux` (the TUI in a detached tmux session, as before) or `acp` (the `claude-agent-acp` adapter over
+stdio, Agent Client Protocol v1, GO in the 2026-10-25 spike `~/.jarvis/spike/acp/FINDINGS.md`). A session uses one or the
+other, never both.
+
+Anze's decisions (2026-10-25): the runners live in Bifrost (not in the HUD); the switch is per session *kind* in
+`config.toml`; scope is Bifrost plus the HUD's wiring; the default stays tmux; billing was checked before building (below).
+
+### The switch
+
+`config.toml`:
+
+```toml
+[sessions]
+default = "tmux"        # a kind not listed below
+max = 10                # sessions running at once, both runners together
+max_acp = 4             # adapters at once (about 0.6 GB RSS each)
+[sessions.kinds]
+"task" = "acp"          # the HUD's task chats (the kind names are the caller's)
+```
+
+Read when a session starts. **The first start pins the runner in `state/sessions.json` and every later call, including a
+resume, uses the pinned one**, so editing the config moves only sessions started after it; `forget()` drops the pin. There
+is no `runner` argument over HTTP: the config decides. An unknown value falls back to tmux with a warning.
+
+### Interface
+
+Library `bifrost.sessions`: `start(id, kind, cwd, scope=, model=, title=, prompt=, session_id=, resume=, name=, trust=, mode=)`,
+`get`, `state`, `list_sessions`, `send`, `press` (tmux), `answer` (acp), `cancel`, `set_mode` (acp), `screen` (tmux),
+`events(after)` (acp), `stop` (keeps the record, so it can resume), `forget` (stops and drops the pin), `switch`,
+`runner_for`. They raise `SessionError` (it carries the HTTP status), which differs from `ask`'s never-raises idiom: a call
+on one named session must say why it could not. A call a runner does not have answers 409 "not available on the X runner".
+
+Service (same guard; writes carrying `Origin` get 403): `POST /session`, `GET /sessions`, `GET /session/{id}`,
+`DELETE /session/{id}`, `GET /session/{id}/screen?lines=`, `GET /session/{id}/events?after=`, `POST /session/{id}/send|press|
+answer|cancel|mode|stop`. Answers are `{"ok": true, ...}` or `{"ok": false, "reason"}` with the status.
+
+### What a runner does
+
+| | tmux | acp |
+|---|---|---|
+| process | `claude` in `tmux -L hud new-session` (same socket, args and environment as the HUD's `startTmux`), name `gw-<id>` unless given | one adapter per session, own process group, log `state/logs/acp-<id>.log` |
+| input | `send` (paste buffer for several lines), `press` (esc, btab, enter, arrows, space) | `send` = `session/prompt`, `answer`, `cancel` = `session/cancel`, `set_mode` |
+| output | `screen` returns the pane text; **reading it stays the HUD's `screen.js`** | `state` (status, the open `ask`, mode, usage), `events` (text, tool, plan, ask) |
+| state | `alive` / `dead` / `gone` | `starting / idle / running / waiting / stopped`: a prompt pending is running, an open request is waiting |
+| resume | `--resume <session id>` (or `--continue`) | `session/resume` with the adapter's session id |
+| questions | the TUI menu, answered with keys | `elicitation/create` (AskUserQuestion) and `session/request_permission` as one normalized `ask` (`kind` question / permission / plan, numbered `options`); answer by `n`, `ns`, `text` or `cancel`, guarded by `ask_id` and `label` against a stale menu |
+
+Both give `state` the same record fields (id, kind, runner, name, cwd, scope, model, session_id).
+
+### Rules a later edit could break
+
+- **One runner per session.** Pin at first start, reuse on resume, never re-read from the config.
+- **tmux sessions stay where the HUD can see them.** Same socket, `HUD_TMUX_SOCKET` honored, so the HUD's remaining tmux code
+  (`screen.js`, preview, the sweep) and Anze's own sessions work on Gateway-started ones. A test instance must set
+  `HUD_TMUX_SOCKET`: a test copy once typed into Anze's real sessions (2026-10-11). `tests/test_sessions.py` does.
+- **The subscription pays.** A session's environment drops `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN`, as `auth="login"` does.
+- **An ACP session lives in the process that started it.** The HUD starts them through the service, so a service restart
+  (launchd, a deploy) ends every adapter; the HUD resumes its open ACP tasks with `session/resume`. The conversation is
+  not lost: it is the same transcript JSONL the TUI writes.
+- **ACP v1 has no state event and no heartbeat.** `state.quiet_for` (seconds since the last update) is what a caller uses to
+  decide a turn is silent; Bifrost does not decide it.
+- **Sessions are not metered.** Fafnir's ledger records `ask` and `run_agent` calls; a session is interactive and its usage is
+  the transcript's, so it has no ledger row. Shortcut, revisit if Fafnir should count interactive spend.
+- **The adapter is pinned** (`acp/package.json`, 0.95.0). Protocol v2 is a draft; bump on purpose and re-run `tests/test_sessions.py`.
+  `npm install --ignore-scripts` in `~/.gateway/acp` after a merge; `acp/node_modules/` is ignored.
+
+### Billing (checked 2026-10-25, re-check before flipping a kind to acp)
+
+Anthropic's help article 15036540 (updated 2026-10-07) says Agent SDK and `claude -p` use still draw from the subscription;
+the planned June split of SDK use into a separate credit is paused and may return. It is not established whether this adapter
+counts as unmodified Claude Code, and the plan behind the work account is not known. So the default stays tmux and no kind
+is set to acp in the shipped config. Flip a kind only after re-reading that article.
+
+### Checked
+
+`tests/test_sessions.py` (scratch home, scratch tmux socket, a fake adapter built from the spike's message shapes): the switch,
+pinning across a config change, both caps, tmux send/paste/press/resume, ACP asks (two-question form, custom text,
+permission, stale guard), cancel of a turn and of an open question, resume, a dead and a missing adapter, and every route
+including the Origin and Host refusals. Against the **real** adapter: `initialize`, `session/new`, `set_config_option` (model, mode)
+and `forget` through the registry, 2.7 s, no prompt sent. **Not checked:** a real prompt turn, a real AskUserQuestion, and
+custom-only answers against the real adapter (they cost model usage; ask Anze first).
