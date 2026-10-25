@@ -1,6 +1,7 @@
 """Bifrost's HTTP service on 127.0.0.1:3027 (launchd com.gateway.server), for callers that are not
-Python on this Mac: the HUD asks its judgments here. Python callers import the `bifrost` library
-directly (same code, same config, same ledger).
+Python on this Mac: the HUD asks its judgments here and runs its Claude sessions here (`bifrost.sessions`).
+Python callers import the `bifrost` library directly (same code, same config, same ledger). An ACP session lives in
+the process that started it, so the HUD's sessions are started through this service and die with it.
 
 Localhost only: the host check refuses DNS rebinding, and a write carrying an Origin header (any
 browser page) is refused, so no web page can spend through Anze's browser. Bifrost makes the call
@@ -14,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from bifrost import ask, surfaces  # noqa: E402
+from bifrost import ask, sessions, surfaces  # noqa: E402
 from bifrost.claude import SCOPES, exe  # noqa: E402
 from starlette.applications import Starlette  # noqa: E402
 from starlette.middleware import Middleware  # noqa: E402
@@ -56,10 +57,64 @@ async def ask_endpoint(r: Request) -> JSONResponse:
                         | {"limited": out.get("limit") is not None})
 
 
+def _start(_sid, b, _q):
+    keys = ("scope", "model", "title", "prompt", "session_id", "resume", "name", "trust", "mode")
+    return sessions.start(str(b["id"]), str(b["kind"]), str(b["cwd"]), **{k: b[k] for k in keys if b.get(k) is not None})
+
+
+# What each session route does: (session id, JSON body, query) -> the JSON to return, or None.
+def _answer(sid, b, _q):
+    pick: dict = {"n": int(b["n"])} if b.get("n") is not None else {}
+    if b.get("ns") is not None:
+        pick["ns"] = [int(n) for n in b["ns"]]
+    sessions.answer(sid, text=b.get("text"), label=b.get("label"), cancel=bool(b.get("cancel")),
+                    ask_id=b.get("ask_id"), **pick)
+
+
+async def _session(r: Request, write: bool, do) -> JSONResponse:
+    """Run one session action off the event loop. A SessionError is the answer, with its own status."""
+    if write and r.headers.get("origin"):
+        return JSONResponse({"ok": False, "reason": "writes are not accepted from a browser page"}, status_code=403)
+    try:
+        body = {}
+        if write and await r.body():
+            body = await r.json()
+            if not isinstance(body, dict):
+                raise sessions.BadRequest("the body must be a JSON object")
+        out = await asyncio.to_thread(do, r.path_params.get("id"), body, r.query_params)
+    except sessions.SessionError as e:
+        return JSONResponse({"ok": False, "reason": str(e)}, status_code=e.status)
+    except (ValueError, KeyError, TypeError) as e:
+        return JSONResponse({"ok": False, "reason": f"bad request: {e!r}"}, status_code=400)
+    return JSONResponse({"ok": True, **(out or {})})
+
+
+def _route(path: str, method: str, do) -> Route:
+    async def endpoint(r: Request) -> JSONResponse:
+        return await _session(r, method != "GET", do)
+    return Route(path, endpoint, methods=[method])
+
+
+SESSION_ROUTES = [
+    _route("/session", "POST", _start),
+    _route("/sessions", "GET", lambda _sid, _b, _q: {"switch": sessions.switch(), "sessions": sessions.list_sessions()}),
+    _route("/session/{id}", "GET", lambda sid, _b, _q: sessions.state(sid)),
+    _route("/session/{id}", "DELETE", lambda sid, _b, _q: sessions.forget(sid)),
+    _route("/session/{id}/screen", "GET", lambda sid, _b, q: sessions.screen(sid, int(q["lines"]) if q.get("lines") else None)),
+    _route("/session/{id}/events", "GET", lambda sid, _b, q: sessions.events(sid, int(q.get("after") or 0))),
+    _route("/session/{id}/send", "POST", lambda sid, b, _q: sessions.send(sid, b["text"])),
+    _route("/session/{id}/press", "POST", lambda sid, b, _q: sessions.press(sid, str(b["key"]))),
+    _route("/session/{id}/answer", "POST", _answer),
+    _route("/session/{id}/cancel", "POST", lambda sid, _b, _q: sessions.cancel(sid)),
+    _route("/session/{id}/mode", "POST", lambda sid, b, _q: sessions.set_mode(sid, str(b["mode"]))),
+    _route("/session/{id}/stop", "POST", lambda sid, _b, _q: sessions.stop(sid)),
+]
+
 routes = [
     Route("/health", health),
     Route("/surfaces", list_surfaces),
     Route("/ask", ask_endpoint, methods=["POST"]),
+    *SESSION_ROUTES,
 ]
 
 app = Starlette(routes=routes, middleware=[Middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])])

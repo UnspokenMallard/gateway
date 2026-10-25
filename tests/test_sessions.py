@@ -234,6 +234,53 @@ def test_failed_adapter_start():
     assert sessions.list_sessions() == [] and acp.LIVE == {}
 
 
+def test_http():
+    from starlette.testclient import TestClient
+
+    from app import app
+    c = TestClient(app, base_url="http://127.0.0.1:3027")
+    config(kinds={"task": "acp"})
+    body = {"id": "h1", "kind": "task", "cwd": str(WORK), "model": "sonnet"}
+    r = c.post("/session", json=body, headers={"Origin": "http://evil.example"})
+    assert r.status_code == 403 and not r.json()["ok"], r.text  # a web page cannot start a session
+    assert c.get("/sessions", headers={"Host": "evil.example"}).status_code == 400  # DNS rebinding
+    assert c.post("/session", content="not json").status_code == 400
+    assert c.post("/session", json={"id": "h1"}).status_code == 400  # kind and cwd are required
+    r = c.post("/session", json=body)
+    assert r.status_code == 200 and r.json()["runner"] == "acp" and r.json()["status"] == "idle", r.text
+    assert c.post("/session", json=body).status_code == 409  # already running
+    listed = c.get("/sessions").json()
+    assert [s["id"] for s in listed["sessions"]] == ["h1"] and listed["switch"]["kinds"] == {"task": "acp"}, listed
+
+    assert c.post("/session/h1/send", json={"text": "ask"}).json()["ok"]
+    ask = wait(lambda: c.get("/session/h1").json()["ask"], "the question over HTTP")
+    assert ask["header"] == "Colour"
+    bad = c.post("/session/h1/answer", json={"n": "x"})
+    assert bad.status_code == 400 and not bad.json()["ok"]
+    assert c.post("/session/h1/answer", json={"n": 1, "label": "Red", "ask_id": ask["id"]}).json()["ok"]
+    assert c.post("/session/h1/answer", json={"ns": [2]}).json()["ok"]
+    wait(lambda: c.get("/session/h1").json()["status"] == "idle", "idle after the answers over HTTP")
+    events = c.get("/session/h1/events", params={"after": 0}).json()
+    assert any(e["type"] == "text" and "Red" in e["text"] for e in events["events"]), events
+    assert c.get("/session/h1/events", params={"after": events["seq"]}).json()["events"] == []
+    r = c.get("/session/h1/screen")
+    assert r.status_code == 409 and "not available on the acp runner" in r.json()["reason"], r.text
+    assert c.post("/session/h1/mode", json={"mode": "plan"}).json()["ok"]
+    assert c.post("/session/h1/stop").json()["status"] == "stopped"
+    assert c.delete("/session/h1", headers={"Origin": "http://evil.example"}).status_code == 403
+    assert c.delete("/session/h1").json()["ok"]
+    assert c.get("/session/h1").status_code == 404
+
+    r = c.post("/session", json={"id": "h2", "kind": "chat", "cwd": str(WORK), "trust": False})
+    assert r.json()["runner"] == "tmux", r.text
+    assert c.post("/session/h2/send", json={"text": "over http"}).json()["ok"]
+    wait(lambda: "over http" in c.get("/session/h2/screen", params={"lines": 20}).json()["text"], "the pane over HTTP")
+    assert c.post("/session/h2/press", json={"key": "esc"}).json()["ok"]
+    assert c.post("/session/h2/press", json={"key": "f13"}).status_code == 400
+    assert c.post("/session/h2/answer", json={"n": 1}).status_code == 409
+    assert c.delete("/session/h2").json()["ok"] and sessions.list_sessions() == []
+
+
 if __name__ == "__main__":
     try:
         for name, fn in list(globals().items()):
