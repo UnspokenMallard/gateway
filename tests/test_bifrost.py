@@ -170,6 +170,7 @@ def test_auth_modes():
     assert "ANTHROPIC_API_KEY" not in env and "ANTHROPIC_AUTH_TOKEN" not in env
     assert env["CLAUDE_CONFIG_DIR"].endswith(".claude-work")
     assert claude.env_for("work", set_env)["ANTHROPIC_API_KEY"] == "sk-ambient"  # auth=None: unchanged
+    assert "HUD_TASK_ID" not in claude.env_for("work", {**set_env, "HUD_TASK_ID": "hodr-9693"})
     assert claude.auth_problem("work", "login") is None and "unknown auth mode" in claude.auth_problem("work", "api-key")
     done = json.dumps({"type": "result", "subtype": "success", "total_cost_usd": 0.1, "num_turns": 1, "result": "ok"})
     saved, proc_run = agent.RUN, claude.proc.run

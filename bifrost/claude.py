@@ -73,6 +73,8 @@ def env_for(scope: str, base: Mapping[str, str] | None = None, auth: str | None 
     """The process environment with CLAUDE_CONFIG_DIR set for the account, and the auth mode applied."""
     env = dict(os.environ if base is None else base)
     env["CLAUDE_CONFIG_DIR"] = str(CONFIG_DIRS[scope])
+    # A headless job is not a HUD task: inherited, the id makes the claims hook confine its writes to that task's worktrees.
+    env.pop("HUD_TASK_ID", None)
     if auth is not None:
         env.pop("ANTHROPIC_AUTH_TOKEN", None)
         env.pop("ANTHROPIC_API_KEY", None)
