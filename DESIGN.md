@@ -226,3 +226,40 @@ permission, stale guard), cancel of a turn and of an open question, resume, a de
 including the Origin and Host refusals. Against the **real** adapter: `initialize`, `session/new`, `set_config_option` (model, mode)
 and `forget` through the registry, 2.7 s, no prompt sent. **Not checked:** a real prompt turn, a real AskUserQuestion, and
 custom-only answers against the real adapter (they cost model usage; ask Anze first).
+
+## Tests, telemetry fields and direct `claude` callers (2026-10-27, audit tasks)
+
+**Tests.** One command, prints the pass count (exit 1 on any failure): `~/.gateway/.venv/bin/python ~/.gateway/tests/run.py`
+(each `tests/test_*.py` runs in its own process; each file still runs alone). Not `unittest discover`: the tests are plain
+functions that point `BIFROST_HOME` at a scratch home at import.
+
+**Telemetry.** Every `fafnir.provider_call` and `fafnir.job_call` row carries `surface`; failed rows carry `reason` (`timeout`,
+the CLI subtype such as `error_max_budget_usd`, or `exit <code>: <last line>`, plus `(denied: tools)`), and `run_agent` /
+`call` return the same string as `reason`. `job_call` rows keep `job` and every earlier field (`~/.budget` reads `job`).
+`ledger.record_job` has no `surface` argument, so `bifrost/_budget.py` appends the rows itself with the same fields.
+Each failed call also appends one line to `state/logs/server.log`. `gateway surfaces --calls` lists every configured
+surface with its 30-day call count (0 included); rows written before this change have no `surface` on job rows, so those
+count under `job:<job>`.
+
+**Direct `claude` callers (audit finding 6, read-only inventory 2026-10-27).** Verdict per file; none edited.
+
+| File | What it does with `claude` | Verdict |
+|---|---|---|
+| `~/.jarvis/daemon/brain.py` | `bifrost.acall` for every call; imports `command`/tool lists only for `g15-replay`; caps and breaker stay in Jarvis | routed |
+| `~/.jarvis/daemon/core.py` | `run_process` is a generic subprocess runner with a timeout; the `claude -p` text is comments; model calls go through brain | routed (no `claude` spawn of its own) |
+| `~/.jarvis/daemon/main.py` | comment and `CLAUDE_CONFIG_DIR` default only; no spawn | routed (no spawn) |
+| `~/.jarvis/daemon/scope.py` | maps a path to the work or personal config dir; no spawn | routed (no spawn) |
+| `~/.jarvis/scripts/jobcommon.py` | `run_claude_job` calls `bifrost.run_agent` | routed |
+| `~/.jarvis/scripts/run-issue-triage.py` | model call via `jc.run_claude_job`; its `subprocess` calls are git/gh | routed |
+| `~/.jarvis/scripts/run-checkups.py` | model call via `jc.run_claude_job` | routed |
+| `~/.jarvis/scripts/run-usage-digest.py` | no model call since 2026-10-01 (runs Fafnir's job script) | routed (no model call) |
+| `~/.jarvis/scripts/checkup-probe.py` | the word `claude -p` is in a docstring; no spawn | routed (no spawn) |
+| `~/.mind/mimir/agentjob.py` | `run_claude_job` calls `bifrost.run_agent`; also holds the shared job lock | routed |
+| `~/.mind/mimir/jobs/nightly-reflection.py` | model call via `jc.run_claude_job`; `subprocess` runs `mem improve signals` | routed |
+| `~/.mind/mimir/jobs/memory-capture.py` | `bifrost.ask("mind-memory-capture", ...)` | routed |
+
+Result: no file in the list spawns `claude` itself, so **none is an intentional bypass and none needs migrating**; the audit's
+grep matched docstrings, `CLAUDE_CONFIG_DIR` handling and the callers of Bifrost. The matches were found by `grep` for
+`bifrost`, `"claude"` and `claude -p` plus reading each call site, not by running the jobs. **Not checked:** other files in
+`~/.jarvis`, `~/.mind` or `~/.budget` outside the audit's list (a repo-wide `grep -rn '"claude"'` would cover them).
+The one structural exception in the design is unchanged: Jarvis's brain keeps its caps in Jarvis and asks Bifrost for the call.
