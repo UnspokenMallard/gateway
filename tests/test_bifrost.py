@@ -28,7 +28,7 @@ import mimirrecords as mr  # noqa: E402
 mr.use_local(mem.connect(shared=True))  # Fafnir's ledger goes to the scratch store in-process, no HTTP
 
 import bifrost  # noqa: E402
-from bifrost import agent, claude, proc, store  # noqa: E402
+from bifrost import _budget, agent, claude, proc, store  # noqa: E402
 from bifrost._budget import ledger, limits  # noqa: E402
 
 RAN: list = []
@@ -118,10 +118,13 @@ def test_run_agent():
         out = bifrost.run_agent("checkups", "p", "Read", None, 1.0, max_attempts=2, backoff_s=0)
         assert out["code"] == 1 and len(RAN) == n + 2  # a transient error is retried, then given up
         assert rows("fafnir.job_call", "ok", "reason", "attempt", n=2) == \
-            [(0, "no-result", 2), (0, "no-result", 1)]  # each attempt is a row with its number and why it was wasted
+            [(0, "exit 1: fetch failed", 2), (0, "exit 1: fetch failed", 1)]  # each attempt is a row with its number and why it was wasted
         agent.RUN = fake_run(json.dumps({"type": "result", "subtype": "error_max_budget_usd", "total_cost_usd": 1.0}), 1)
         out = bifrost.run_agent("checkups", "p", "Read", None, 1.0, max_attempts=3, backoff_s=0)
         assert out["subtype"] == "error_max_budget_usd" and len(RAN) == n + 3  # the cap is never retried
+        assert out["reason"] == "error_max_budget_usd"  # the caller's alert can name the cause
+        assert rows("fafnir.job_call", "job", "surface", "reason") == \
+            [("checkups", "job:checkups", "error_max_budget_usd")]  # surface beside job; consumers keep reading job
         assert bifrost.run_agent("nobody", "p", "Read")["subtype"] == "not-started"  # no surface, no call
         real = ledger.job_budget
         ledger.job_budget = lambda cfg=None, scope="personal": {"spent": 41.0, "ceiling": 40.0, "over": True,
@@ -162,6 +165,32 @@ def test_service_and_cli():
     env = {**os.environ, "BIFROST_HOME": str(TMP / "bifrost"), "FAFNIR_HOME": str(TMP / "budget")}
     s = subprocess.run([str(ROOT / "bin" / "gateway"), "surfaces"], capture_output=True, text=True, env=env)
     assert s.returncode == 0 and "job:implementer" in s.stdout
+
+
+def test_failure_reason_log_and_surface_counts():
+    assert claude.failure_reason(124) == "timeout"
+    assert claude.failure_reason(1, "error_max_budget_usd") == "error_max_budget_usd"
+    assert claude.failure_reason(1, "success", ["Bash", "Bash"]) == "exit 1 (denied: Bash)"
+    saved = claude.proc.run
+    try:
+        claude.proc.run = fake_run("partial output", code=124)
+        out = bifrost.ask("hud-whereami", "q")
+        assert not out["ok"] and out["reason"].startswith("timeout")
+        claude.proc.run = fake_run(json.dumps({"is_error": True, "subtype": "error_max_budget_usd", "result": "cap"}), code=1)
+        out = bifrost.ask("hud-whereami", "q")
+        assert out["reason"].startswith("error_max_budget_usd"), out["reason"]
+    finally:
+        claude.proc.run = saved
+    assert rows("fafnir.provider_call", "surface", "ok", "reason", n=2) == \
+        [("hud-whereami", 0, "error_max_budget_usd"), ("hud-whereami", 0, "timeout")]
+    lines = (store.STATE / "logs" / "server.log").read_text().splitlines()
+    assert len(lines) >= 2 and "FAILED hud-whereami" in lines[-1] and "error_max_budget_usd" in lines[-1], lines
+    counts = _budget.calls_by_surface()
+    assert counts["hud-whereami"] >= 2 and counts["job:checkups"] >= 1 and "mind-vault-capture" not in counts, counts
+    env = {**os.environ, "BIFROST_HOME": str(TMP / "bifrost"), "FAFNIR_HOME": str(TMP / "budget")}
+    s = subprocess.run([sys.executable, "-c", "import sys; sys.path.insert(0, %r); from bifrost import cli; cli.main(['surfaces', '--calls'])" % str(ROOT)],
+                       capture_output=True, text=True, env=env)
+    assert "mind-vault-capture" in s.stdout and "with 0 calls" in s.stdout, s.stdout + s.stderr
 
 
 def test_auth_modes():

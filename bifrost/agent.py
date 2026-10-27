@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from . import claude, proc, store
+from . import _budget
 from ._budget import ledger, limits
 
 HOME = Path.home()
@@ -168,14 +169,13 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
         detail = f"{note + ' ' if note else ''}{subtype} turns={turns if turns is not None else '?'} attempt={attempt}"
         if denials:
             detail += f" denials={len(denials)}[{','.join(denials)}]"
-        row = None
-        try:
-            # `ok` is only "the call succeeded"; a failed call's subtype is its `reason`, and
-            # `reject()` adds one later when the job refuses the output of a call that succeeded.
-            row = ledger.record_job(job, ok, duration, cost, model, detail, scope=scope,
-                                    reason="" if ok else subtype, attempt=attempt)
-        except Exception as exc:  # noqa: BLE001
-            _log(log_file, f"(could not record the job call in Fafnir: {exc})")
+        # `ok` is only "the call succeeded"; a failed call's `reason` says why (timeout, the CLI's subtype,
+        # denied tools), and `reject()` adds one later when the job refuses the output of a call that succeeded.
+        why = "" if ok else (f"usage limit: {hit.evidence}" if hit is not None
+                             else claude.failure_reason(code, subtype, denials, output))
+        row = _budget.record_job(job, surface, ok, duration, cost, model, detail, scope, reason=why, attempt=attempt)
+        if not ok:
+            claude.log_failure(job, scope, why)
         cost_s = f"{cost:.4f}".rstrip("0").rstrip(".") if cost is not None else "-"
         _log(log_file, f"--- claude[{scope}] {model}: {subtype}, ${cost_s} list price, "
                        f"{turns if turns is not None else '?'} turn(s), {duration}s, session {sid} ---")
@@ -183,7 +183,7 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
             _log(log_file, str(result["result"]))
         out.update(code=code, ok=ok, subtype=subtype, cost_usd=cost or 0.0, turns=turns,
                    result=str((result or {}).get("result") or ""), denials=denials, session=sid, limit=hit,
-                   output=output, ledger_id=row, duration_s=duration, reason=subtype)
+                   output=output, ledger_id=row, duration_s=duration, reason=why or subtype)
         if hit is not None:
             out["reason"] = f"usage limit: {hit.evidence}"
             return out

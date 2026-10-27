@@ -34,11 +34,13 @@ import os
 import re
 import shutil
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping
 
 from . import proc, store
-from ._budget import ledger, limits
+from . import _budget
+from ._budget import limits
 
 log = logging.getLogger("bifrost.claude")
 
@@ -133,16 +135,51 @@ def command(exe_path: str, model: str, budget_usd: float | None, *, prompt: str 
     return cmd
 
 
+def failure_reason(code: int, subtype: str = "", denials: list[str] | tuple = (), output: str = "") -> str:
+    """Why a call failed, in one short string: `timeout`, the CLI's own subtype (`error_max_budget_usd`,
+    `error_during_execution`), or `exit <code>` with the last output line, plus any denied tools."""
+    if code == 124:
+        why = "timeout"
+    elif subtype and subtype not in ("success", "no-result", "None"):
+        why = subtype
+    else:
+        last = next((ln.strip() for ln in reversed(output.splitlines()) if ln.strip()), "")
+        why = f"exit {code}" + (f": {last[:100]}" if last else "")
+    return why + (f" (denied: {','.join(sorted(set(denials)))})" if denials else "")
+
+
+def log_failure(name: str, scope: str, reason: str) -> None:
+    """One line per failed call in state/logs/server.log. Never raises."""
+    try:
+        path = store.STATE / "logs" / "server.log"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(f"{datetime.now().astimezone().isoformat(timespec='seconds')} FAILED {name} [{scope}] "
+                     f"{reason[:300]!r}\n")
+    except OSError:
+        pass
+
+
 def _record(surface: str, job: str | None, ok: bool, duration: float, cost: float | None, model: str,
-            detail: str, scope: str) -> None:
+            detail: str, scope: str, reason: str = "") -> None:
+    if not ok:
+        log_failure(job or surface, scope, reason or detail)
     try:
         if job:
-            ledger.record_job(job, ok, duration, cost, model, detail[:200], scope=scope)
+            _budget.record_job(job, surface, ok, duration, cost, model, detail[:200], scope, reason=reason)
         else:
-            ledger.record_call(surface, ok=ok, duration_s=duration, cost_usd=cost, model=model, detail=detail,
-                               scope=scope)
+            _budget.record_call(surface, ok, duration, cost, model, detail, scope, reason=reason)
     except Exception as exc:  # noqa: BLE001 - a ledger hiccup must not lose the answer
         log.warning("bifrost: could not record %s: %s", surface, exc)
+
+
+def _parse_result(output: str) -> dict | None:
+    """The CLI's JSON result object in `output`, or None."""
+    try:
+        doc, _ = json.JSONDecoder().raw_decode(output, output.index("{"))
+    except ValueError:
+        return None
+    return doc if isinstance(doc, dict) else None
 
 
 def call(surface: str, prompt: str, *, scope: str = "personal", model: str | None = None,
@@ -183,17 +220,19 @@ def call(surface: str, prompt: str, *, scope: str = "personal", model: str | Non
         hit = limits.detect(output, provider_of(scope))
         if hit is not None:
             limits.record(hit)
-            _record(surface, job, False, duration, 0.0, model, f"usage limit: {hit.evidence}", scope)
+            _record(surface, job, False, duration, 0.0, model, f"usage limit: {hit.evidence}", scope,
+                    reason="usage limit")
             return {**base, "limit": hit, "reason": f"usage limit: {hit.evidence}"}
-        detail = f"claude exit={code}: {output[-400:]}"
-        _record(surface, job, False, duration, 0.0, model, detail, scope)
+        why = failure_reason(code, str((_parse_result(output) or {}).get("subtype") or ""), output=output)
+        detail = f"{why}; claude exit={code}: {output[-400:]}"
+        _record(surface, job, False, duration, 0.0, model, detail, scope, reason=why)
         return {**base, "reason": detail}
 
     try:
         parsed, _ = json.JSONDecoder().raw_decode(output, output.index("{"))
     except ValueError as exc:
         detail = f"unparseable CLI output ({exc}): {output[:300]}"
-        _record(surface, job, False, duration, 0.0, model, detail, scope)
+        _record(surface, job, False, duration, 0.0, model, detail, scope, reason="unparseable CLI output")
         return {**base, "reason": detail}
 
     cost = float(parsed.get("total_cost_usd") or 0.0)
@@ -201,7 +240,8 @@ def call(surface: str, prompt: str, *, scope: str = "personal", model: str | Non
     stop = str(parsed.get("stop_reason") or "")
     ok = not parsed.get("is_error")
     reason = f"stop_reason={stop}" if ok else f"{parsed.get('subtype')}: {text[:200]}"
-    _record(surface, job, ok, duration, cost, model, f"stop_reason={stop} {text[:200]}" if ok else reason, scope)
+    _record(surface, job, ok, duration, cost, model, f"stop_reason={stop} {text[:200]}" if ok else reason, scope,
+            reason="" if ok else failure_reason(0, str(parsed.get("subtype") or ""), output=output))
     limits.note_success(provider_of(scope))
     return {**base, "ok": ok, "text": text, "cost_usd": cost, "reason": reason}
 
