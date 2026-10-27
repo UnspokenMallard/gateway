@@ -1,7 +1,7 @@
 """Bifrost against a scratch home and a scratch Fafnir on a scratch Mimir: the argument lists, routing by surface, the
 parse, the usage-limit record, the ledger rows, run_agent's gate, retries and cap, the service's
 guard, and the CLI. Nothing reaches a model: the process runner is replaced.
-Run: ~/.gateway/.venv/bin/python ~/.gateway/tests/test_bifrost.py"""
+Run all: ~/.gateway/.venv/bin/python ~/.gateway/tests/run.py (this file alone works too)"""
 import json
 import os
 import shutil
@@ -212,12 +212,5 @@ def test_job_session_strict_mcp():
 
 
 if __name__ == "__main__":
-    test_command()
-    test_job_session_strict_mcp()
-    test_routing_and_parse()
-    test_store_path()
-    test_run_agent()
-    test_auth_modes()
-    test_proc_timeout_kills()
-    test_service_and_cli()
-    print("ok")
+    from run import run_all
+    run_all(globals())

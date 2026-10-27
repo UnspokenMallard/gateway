@@ -2,7 +2,7 @@
 per-kind switch and its pinning, the caps, the tmux runner (a `cat` in place of claude), the ACP runner (asks,
 permissions, cancel, resume), and the service's routes. Nothing reaches a model and nothing touches the live `hud`
 tmux socket.
-Run: ~/.gateway/.venv/bin/python ~/.gateway/tests/test_sessions.py"""
+Run all: ~/.gateway/.venv/bin/python ~/.gateway/tests/run.py (this file alone works too)"""
 import json
 import os
 import subprocess
@@ -283,10 +283,8 @@ def test_http():
 
 if __name__ == "__main__":
     try:
-        for name, fn in list(globals().items()):
-            if name.startswith("test_"):
-                fn()
-                print("ok", name)
+        from run import run_all
+        run_all(globals())
     finally:
         subprocess.run(["tmux", "-L", SOCKET, "kill-server"], capture_output=True)
         for s in list(acp.LIVE.values()):
