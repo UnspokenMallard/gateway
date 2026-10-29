@@ -111,7 +111,8 @@ def test_run_agent():
         agent.reject(out, "no artifact")  # the job refuses the output of a call that succeeded
         # the call row stays as written: the refusal is its own row, joined to the call by uid
         assert rows("fafnir.job_reject", "job_uid", "reason") == [(out["ledger_id"], "no artifact")]
-        assert ledger.wasted_spend(7) == [{"job": "checkups", "rows": 1, "usd": 0.4}]  # and Fafnir counts it wasted
+        assert [(w["job"], w["rows"], w["usd"], w["uids"]) for w in ledger.wasted_spend(7)] == \
+            [("checkups", 1, 0.4, [out["ledger_id"]])]  # and Fafnir counts it wasted
         assert "wrote it" in log.read_text()
         n = len(RAN)
         agent.RUN = fake_run("fetch failed", code=1)
