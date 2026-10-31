@@ -112,6 +112,20 @@ def test_tmux_runner():
     assert tmux.status({"name": "gw-t1"}) == "gone"
 
 
+def test_tmux_restart_after_exit():
+    tmux.argv = lambda rec, spec: ["sh", "-c", "sleep 1"]  # claude exits soon after start; remain-on-exit keeps the dead pane
+    config()
+    sessions.start("d1", "chat", str(WORK), trust=False)
+    wait(lambda: tmux.status({"name": "gw-d1"}) == "dead", "the pane to die")
+    sid = sessions.get("d1")["session_id"]
+    again = sessions.start("d1", "chat", str(WORK), resume=True, trust=False)  # used to fail: duplicate session
+    assert again["session_id"] == sid, again
+    wait(lambda: tmux.status({"name": "gw-d1"}) == "dead", "the second pane to die")
+    sessions.start("d1", "chat", str(WORK), trust=False)  # a fresh start over a dead pane
+    sessions.forget("d1")
+    tmux.argv = lambda rec, spec: ["cat"]
+
+
 def test_pinning():
     config(kinds={"task": "tmux"})
     sessions.start("p1", "task", str(WORK), trust=False)

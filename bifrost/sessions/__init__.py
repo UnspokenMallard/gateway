@@ -124,6 +124,8 @@ def start(sid: str, kind: str, cwd: str, *, scope: str = "work", model: str | No
         old = _load().get(sid) or {}
         if old and status(old) == "alive":
             raise SessionError(f"session {sid} is already running")
+        if old:
+            RUNNERS[old["runner"]].stop(old)  # a dead tmux pane (remain-on-exit) still holds the name
         if resume and not old:
             raise NotFound(f"no session {sid!r} to resume")
         runner = old["runner"] if resume else runner_for(kind, cfg)
