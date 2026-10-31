@@ -16,6 +16,8 @@
 "hud-whereami" = "claude:haiku"
 "hud-commit-message" = "claude:haiku"
 "hud-task-classify" = "claude:haiku"
+"hud-goal-plan" = "claude:sonnet"          # one call: a goal becomes an ordered list of chats (2026-10-31)
+"hud-goal-check" = "claude:haiku"          # one call: do the goal's done-criteria hold after a merge (2026-10-31)
 # Mimir:
 "mind-session-history" = "claude:haiku"
 "mind-memory-capture" = "claude:haiku"
