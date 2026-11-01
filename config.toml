@@ -18,6 +18,7 @@
 "hud-task-classify" = "claude:haiku"
 "hud-goal-plan" = "claude:sonnet"          # one call: a goal becomes an ordered list of chats (2026-10-31)
 "hud-goal-check" = "claude:haiku"          # one call: do the goal's done-criteria hold after a merge (2026-10-31)
+"hud-finding-triage" = "claude:haiku"       # one call per audit finding before a fix chat starts: is it real, is a code change needed (2026-11-01)
 # Mimir:
 "mind-session-history" = "claude:haiku"
 "mind-memory-capture" = "claude:haiku"
