@@ -183,7 +183,7 @@ def test_failure_reason_log_and_surface_counts():
     finally:
         claude.proc.run = saved
     assert rows("fafnir.provider_call", "surface", "ok", "reason", n=2) == \
-        [("hud-whereami", 0, "error_max_budget_usd"), ("hud-whereami", 0, "timeout")]
+        [("hud-whereami", 0, "error_max_budget_usd: cap"), ("hud-whereami", 0, "timeout")]
     lines = (store.STATE / "logs" / "server.log").read_text().splitlines()
     assert len(lines) >= 2 and "FAILED hud-whereami" in lines[-1] and "error_max_budget_usd" in lines[-1], lines
     counts = _budget.calls_by_surface()
@@ -217,6 +217,43 @@ def test_auth_modes():
         assert bifrost.ask("hud-task-classify", "q", scope="work", auth="api-key")["ok"] is False
     finally:
         agent.RUN, claude.proc.run = saved, proc_run
+
+
+def test_usage_limit_result_text():
+    text = "You've hit your 5-hour limit · resets 6:20pm (Europe/Ljubljana)"
+    line = json.dumps({"duration_api_ms": 0, "stop_reason": "stop_sequence", "session_id": "x", "is_error": True,
+                       "num_turns": 1, "subtype": "success", "api_error_status": 429,
+                       "api_error": "usage_limit_reached", "result": text, "type": "result"})
+    assert claude.failure_reason(1, "success", output=line) == f"usage_limit_reached: {text}"
+    assert claude.failure_reason(1, "success", ["Bash"], line) == f"usage_limit_reached: {text} (denied: Bash)"
+    assert claude.failure_reason(124, "success", output=line) == "timeout"  # a timeout still wins over result text
+    saved, agent_run = claude.proc.run, agent.RUN
+    try:
+        claude.proc.run = fake_run(line, code=1)
+        out = bifrost.call("escalation", "x")
+        assert out["limit"] is not None and out["limit"].evidence == text, out
+        assert out["reason"] == f"usage limit: {text}", out["reason"]
+        fresh = limits.detect(line, "claude")
+        assert out["limit"].resets_at == fresh.resets_at and out["limit"].raw == fresh.raw
+        assert rows("fafnir.provider_call", "ok", "reason", "detail") == [(0, "usage limit", f"usage limit: {text}")]
+        assert limits.blocked("claude")[0]
+        claude.proc.run = fake_run(line, code=0)  # exit 0, but the result object is an error
+        out = bifrost.call("escalation", "x")
+        assert out["ok"] is False and out["limit"] is not None and out["limit"].evidence == text, out
+        assert limits.blocked("claude")[0]  # not ok, so the window stays; note_success must not clear it
+        agent.RUN = fake_run(line, code=1)
+        out = bifrost.run_agent("checkups", "p", "Read", None, 1.0, max_attempts=1, backoff_s=0)
+        assert out["limit"] is not None and out["limit"].evidence == text and out["reason"] == f"usage limit: {text}", out
+        assert rows("fafnir.job_call", "ok", "reason") == [(0, f"usage limit: {text}")]
+        warned = "warning: stray { before the result\n" + json.dumps(
+            {"type": "result", "subtype": "success", "result": "parsed ok", "total_cost_usd": 0.01,
+             "stop_reason": "end_turn"})
+        claude.proc.run = fake_run(warned)
+        out = bifrost.call("escalation", "x")
+        assert out["ok"] and out["text"] == "parsed ok", out
+    finally:
+        claude.proc.run, agent.RUN = saved, agent_run
+        limits.clear("claude")
 
 
 def test_job_session_strict_mcp():

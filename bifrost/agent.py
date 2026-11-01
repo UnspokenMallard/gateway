@@ -161,7 +161,7 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
         turns = result.get("num_turns") if result else None
         denials = [d.get("tool_name", "?") for d in (result or {}).get("permission_denials") or []]
         ok = code == 0 and subtype == "success" and not (result or {}).get("is_error")
-        hit = limits.detect(output, claude.provider_of(scope)) if not ok else None
+        hit = claude.limit_hit(output, claude.provider_of(scope)) if not ok else None
         if hit is not None:
             limits.record(hit)
         elif ok:

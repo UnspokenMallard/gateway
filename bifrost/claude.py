@@ -28,6 +28,7 @@ the OAuth login whenever one is set. There is no API-key mode: Bifrost never rea
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import os
@@ -136,10 +137,21 @@ def command(exe_path: str, model: str, budget_usd: float | None, *, prompt: str 
 
 
 def failure_reason(code: int, subtype: str = "", denials: list[str] | tuple = (), output: str = "") -> str:
-    """Why a call failed, in one short string: `timeout`, the CLI's own subtype (`error_max_budget_usd`,
-    `error_during_execution`), or `exit <code>` with the last output line, plus any denied tools."""
+    """Why a call failed, in one short string: `timeout`, `<api_error or subtype>: <result>` when the CLI
+    result object is an error with result text, the CLI's own subtype (`error_max_budget_usd`,
+    `error_during_execution`) when there is no result text, or `exit <code>` with the last output line,
+    plus any denied tools."""
+    parsed = _parse_result(output) if output else None
+    result_text = ""
+    if isinstance(parsed, dict) and parsed.get("is_error"):
+        raw_result = parsed.get("result")
+        if isinstance(raw_result, str) and raw_result:
+            result_text = raw_result
+    prefix = str(parsed.get("api_error") or parsed.get("subtype") or subtype or "") if isinstance(parsed, dict) else ""
     if code == 124:
         why = "timeout"
+    elif result_text and prefix:
+        why = f"{prefix}: {result_text[:100]}"
     elif subtype and subtype not in ("success", "no-result", "None"):
         why = subtype
     else:
@@ -174,12 +186,40 @@ def _record(surface: str, job: str | None, ok: bool, duration: float, cost: floa
 
 
 def _parse_result(output: str) -> dict | None:
-    """The CLI's JSON result object in `output`, or None."""
+    """The CLI's JSON result object in `output`, or None.
+
+    Prefer the last line that starts with `{` and parses to a dict with `"type": "result"`
+    (stderr is merged into stdout and may contain a `{` earlier). Otherwise the first JSON
+    value at a `{`.
+    """
+    for line in reversed(output.splitlines()):
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            doc = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(doc, dict) and doc.get("type") == "result":
+            return doc
     try:
         doc, _ = json.JSONDecoder().raw_decode(output, output.index("{"))
     except ValueError:
         return None
     return doc if isinstance(doc, dict) else None
+
+
+def limit_hit(output: str, provider: str):
+    """`limits.detect`, with evidence taken from the CLI result text when that text is present."""
+    hit = limits.detect(output, provider)
+    if hit is None:
+        return None
+    parsed = _parse_result(output)
+    if isinstance(parsed, dict):
+        text = parsed.get("result")
+        if isinstance(text, str) and text:
+            return dataclasses.replace(hit, evidence=text[:200])
+    return hit
 
 
 def call(surface: str, prompt: str, *, scope: str = "personal", model: str | None = None,
@@ -215,23 +255,27 @@ def call(surface: str, prompt: str, *, scope: str = "personal", model: str | Non
         code, output = 127, f"could not start claude: {exc}"
     duration = time.time() - started
     base.update(code=code, output=output, duration_s=round(duration, 3))
-
-    if code != 0:
-        hit = limits.detect(output, provider_of(scope))
+    parsed = _parse_result(output)
+    is_error = isinstance(parsed, dict) and bool(parsed.get("is_error"))
+    if code != 0 or is_error:
+        hit = limit_hit(output, provider_of(scope))
         if hit is not None:
             limits.record(hit)
             _record(surface, job, False, duration, 0.0, model, f"usage limit: {hit.evidence}", scope,
                     reason="usage limit")
             return {**base, "limit": hit, "reason": f"usage limit: {hit.evidence}"}
-        why = failure_reason(code, str((_parse_result(output) or {}).get("subtype") or ""), output=output)
+    if code != 0:
+        why = failure_reason(code, str((parsed or {}).get("subtype") or ""), output=output)
         detail = f"{why}; claude exit={code}: {output[-400:]}"
         _record(surface, job, False, duration, 0.0, model, detail, scope, reason=why)
         return {**base, "reason": detail}
-
-    try:
-        parsed, _ = json.JSONDecoder().raw_decode(output, output.index("{"))
-    except ValueError as exc:
-        detail = f"unparseable CLI output ({exc}): {output[:300]}"
+    if not isinstance(parsed, dict):
+        try:
+            json.JSONDecoder().raw_decode(output, output.index("{"))
+            problem = "no JSON result"
+        except ValueError as exc:
+            problem = str(exc)
+        detail = f"unparseable CLI output ({problem}): {output[:300]}"
         _record(surface, job, False, duration, 0.0, model, detail, scope, reason="unparseable CLI output")
         return {**base, "reason": detail}
 
@@ -242,7 +286,8 @@ def call(surface: str, prompt: str, *, scope: str = "personal", model: str | Non
     reason = f"stop_reason={stop}" if ok else f"{parsed.get('subtype')}: {text[:200]}"
     _record(surface, job, ok, duration, cost, model, f"stop_reason={stop} {text[:200]}" if ok else reason, scope,
             reason="" if ok else failure_reason(0, str(parsed.get("subtype") or ""), output=output))
-    limits.note_success(provider_of(scope))
+    if ok:
+        limits.note_success(provider_of(scope))
     return {**base, "ok": ok, "text": text, "cost_usd": cost, "reason": reason}
 
 
