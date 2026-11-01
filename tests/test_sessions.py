@@ -112,6 +112,19 @@ def test_tmux_runner():
     assert tmux.status({"name": "gw-t1"}) == "gone"
 
 
+def test_tmux_send_leading_dash():
+    tmux.argv = lambda rec, spec: ["cat"]  # echoes typed lines; a leading dash must not be a send-keys flag
+    config()
+    sessions.start("td", "chat", str(WORK), trust=False)
+    try:
+        sessions.send("td", "- item")
+        wait(lambda: "- item" in sessions.screen("td")["text"], "'- item' on the pane")
+        sessions.send("td", "-x")
+        wait(lambda: "-x" in sessions.screen("td")["text"], "'-x' on the pane")
+    finally:
+        sessions.forget("td")
+
+
 def test_tmux_restart_after_exit():
     tmux.argv = lambda rec, spec: ["sh", "-c", "sleep 1"]  # claude exits soon after start; remain-on-exit keeps the dead pane
     config()

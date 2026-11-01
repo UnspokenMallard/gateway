@@ -122,7 +122,8 @@ def send(rec: dict, text: str) -> None:
         _must("paste-buffer", "-p", "-d", "-b", buf, "-t", rec["name"])
         time.sleep(0.25)
     else:
-        _must("send-keys", "-t", rec["name"], "-l", msg)
+        # `--` so a message that starts with "-" is literal text, not a send-keys flag.
+        _must("send-keys", "-t", rec["name"], "-l", "--", msg)
     # Claude Code reads keys that arrive with the text as part of a paste, where Enter is a newline.
     time.sleep(0.15)
     _must("send-keys", "-t", rec["name"], "Enter")
