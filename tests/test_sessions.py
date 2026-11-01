@@ -308,6 +308,26 @@ def test_http():
     assert c.delete("/session/h2").json()["ok"] and sessions.list_sessions() == []
 
 
+def test_ask_bad_timeout():
+    import app as gateway
+    from starlette.testclient import TestClient
+
+    called = []
+    real = gateway.ask
+    gateway.ask = lambda *a, **k: called.append((a, k))
+    try:
+        c = TestClient(gateway.app, base_url="http://127.0.0.1:3027")
+        r = c.post("/ask", json={"surface": "hud-whereami", "prompt": "x", "timeout_s": "abc"})
+        assert r.status_code == 400 and str(r.json().get("error", "")).startswith("bad request:"), r.text
+        assert called == []
+        for bad in (0, -1):
+            r = c.post("/ask", json={"surface": "hud-whereami", "prompt": "x", "timeout_s": bad})
+            assert r.status_code == 400 and str(r.json().get("error", "")).startswith("bad request:"), r.text
+            assert called == []
+    finally:
+        gateway.ask = real
+
+
 if __name__ == "__main__":
     try:
         from run import run_all

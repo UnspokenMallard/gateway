@@ -44,13 +44,17 @@ async def ask_endpoint(r: Request) -> JSONResponse:
     try:
         body = await r.json()
         surface, prompt = str(body["surface"]), str(body["prompt"])
+        raw_timeout = body.get("timeout_s")
+        timeout_s = float(90 if raw_timeout in (None, "") else raw_timeout)
+        if timeout_s <= 0:
+            raise ValueError("timeout_s must be positive")
     except (ValueError, KeyError, TypeError) as e:
         return JSONResponse({"error": f"bad request: {e}"}, status_code=400)
     if not surface.startswith(HTTP_SURFACES):
         return JSONResponse({"error": f"surface {surface!r} is not served over HTTP"}, status_code=403)
     scope = body.get("scope") if body.get("scope") in SCOPES else "personal"
     out = await asyncio.to_thread(ask, surface, prompt, None, scope, system=body.get("system") or None,
-                                  timeout_s=float(body.get("timeout_s") or 90))
+                                  timeout_s=timeout_s)
     if out is None:
         return JSONResponse({"ok": False, "answer": None, "reason": "surface is off"})
     return JSONResponse({k: out.get(k) for k in ("ok", "answer", "text", "model", "cost_usd", "duration_s", "reason")}
