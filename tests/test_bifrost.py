@@ -219,6 +219,25 @@ def test_auth_modes():
         agent.RUN, claude.proc.run = saved, proc_run
 
 
+def test_run_agent_default_timeout():
+    seen = []
+    done = json.dumps({"type": "result", "subtype": "success", "total_cost_usd": 0.01, "num_turns": 1, "result": "ok"})
+
+    def run(cmd, timeout_s=None, cwd=None, input_text=None, env=None, sink=None):
+        seen.append(timeout_s)
+        return 0, done
+
+    saved = agent.RUN
+    try:
+        agent.RUN = run
+        out = bifrost.run_agent("checkups", "p", "Read", None, 1.0, max_attempts=1)
+        assert out["ok"] and seen == [1800], (out, seen)  # callers that omit timeout_s get 30 minutes
+        bifrost.run_agent("checkups", "p", "Read", None, 1.0, max_attempts=1, timeout_s=42)
+        assert seen == [1800, 42], seen  # an explicit value still wins
+    finally:
+        agent.RUN = saved
+
+
 def test_usage_limit_result_text():
     text = "You've hit your 5-hour limit · resets 6:20pm (Europe/Ljubljana)"
     line = json.dumps({"duration_api_ms": 0, "stop_reason": "stop_sequence", "session_id": "x", "is_error": True,

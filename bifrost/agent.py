@@ -106,7 +106,7 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
               scope: str = "personal", cwd: Path | str | None = None, optional: bool = False,
               log_file: Path | None = None, surface: str | None = None, flags: list[str] | None = None,
               session: str | None = None, max_attempts: int = 3, backoff_s: int = 120,
-              timeout_s: float | None = None, deny: bool = True, note: str = "", auth: str | None = None,
+              timeout_s: float | None = 1800, deny: bool = True, note: str = "", auth: str | None = None,
               cfg: Mapping[str, Any] | None = None) -> dict:
     """One job session under its declared limits. Never raises.
 
@@ -117,6 +117,9 @@ def run_agent(job: str, prompt: str, tools: str, allow: list[str] | None = None,
     `flags` are extra CLI flags (the implementer's `--safe-mode --restricted`); `deny=False`
     drops the shared deny list for a caller whose allow rules are already a closed set.
     `auth` is `login` or None (see claude.py).
+    `timeout_s` defaults to 1800 seconds so a hung `claude -p` cannot wait forever; an explicit
+    value (including None) is passed through to the process runner, which exits 124 on timeout
+    and is reported as the `timeout` failure reason.
     """
     cfg = cfg if cfg is not None else store.load_config()
     surface = surface or f"job:{job}"
