@@ -238,6 +238,40 @@ def test_run_agent_default_timeout():
         agent.RUN = saved
 
 
+def test_malformed_config_keeps_last_good():
+    import logging
+    home = TMP / "malformed-config"
+    home.mkdir()
+    saved_root = store.ROOT
+    saved_run = claude.proc.run
+    records: list = []
+
+    class _Grab(logging.Handler):
+        def emit(self, record):
+            records.append(record)
+
+    handler = _Grab()
+    logger = logging.getLogger("bifrost")
+    logger.addHandler(handler)
+    try:
+        store.set_root(home)
+        store.CONFIG.write_text('[surfaces]\n"hud-whereami" = "claude:haiku"\n')
+        first = store.load_config()
+        assert first["surfaces"]["hud-whereami"] == "claude:haiku", first
+        store.CONFIG.write_text("[\n")  # not valid TOML
+        again = store.load_config()  # must not raise
+        assert again == first, again
+        assert len(records) == 1 and records[0].name == "bifrost" and records[0].levelno == logging.WARNING, records
+        claude.proc.run = fake_run(json.dumps({"type": "result", "subtype": "success", "result": "hi",
+                                               "total_cost_usd": 0.01}))
+        out = bifrost.ask("hud-whereami", "still here")
+        assert out is None or isinstance(out, dict)
+    finally:
+        claude.proc.run = saved_run
+        logger.removeHandler(handler)
+        store.set_root(saved_root)
+
+
 def test_usage_limit_result_text():
     text = "You've hit your 5-hour limit · resets 6:20pm (Europe/Ljubljana)"
     line = json.dumps({"duration_api_ms": 0, "stop_reason": "stop_sequence", "session_id": "x", "is_error": True,
