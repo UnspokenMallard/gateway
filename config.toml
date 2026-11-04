@@ -42,6 +42,8 @@
 "job:remediate" = "claude:sonnet"          # Jarvis incident remediation (2026-10-18)
 "job:proposer" = "claude:sonnet"           # Mimir's nightly Proposer edit agent (2026-10-21)
 "job:implementer" = "claude:sonnet"        # Brokkr's implementer (was [implementer] model in Jarvis's config)
+"job:refiner-pick" = "claude:sonnet"       # Idunn (Refiner): read-only ranking of improvements (2026-11-04)
+"job:refiner-apply" = "claude:sonnet"      # Idunn (Refiner): one write session per applied change (2026-11-04)
 
 
 # Long-lived Claude Code sessions (bifrost.sessions, DESIGN.md "Sessions"): which runner a kind of session gets.
